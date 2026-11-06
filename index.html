@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b6e8a">
+<title>ELSHAHED Optics</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="elshahed_icon.png">
+<link rel="apple-touch-icon" href="elshahed_icon.png">
+<style>
+:root{
+  --bg:#f4f7f9; --card:#ffffff; --ink:#10202b; --muted:#5d6d79; --line:#dde5ea;
+  --accent:#0b6e8a; --accent-d:#095a72; --soft:#e4f1f6;
+  --danger:#b42318; --dsoft:#fdecea; --navh:0px;
+}
+body.admin{ --navh:64px; }
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html{ -webkit-text-size-adjust:100%; }
+body{
+  margin:0; background:var(--bg); color:var(--ink); min-height:100vh;
+  font:17px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+button{ font:inherit; color:inherit; cursor:pointer; border:0; background:none; padding:0; }
+button:disabled{ cursor:default; }
+h1,h2,h3,p{ margin:0; }
+#app{ max-width:560px; margin:0 auto; min-height:100vh; padding:0 16px calc(var(--navh) + 28px); }
+
+/* header */
+.hdr{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 0 6px; }
+.brand{ display:flex; align-items:center; gap:10px; min-width:0; }
+.brand svg{ width:36px; height:36px; flex:none; }
+.brand b{ display:block; font-size:18px; letter-spacing:.02em; }
+.brand small{ color:var(--muted); font-size:13px; }
+.out{ color:var(--muted); font-size:15px; padding:10px 4px; }
+.back{ width:44px; height:44px; display:grid; place-items:center; border-radius:12px; margin-left:-10px; }
+.back svg{ width:24px; height:24px; }
+.ttl{ font-size:20px; flex:1; }
+
+/* find */
+.lbl{ margin:24px 0 8px; font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; }
+.choices{ display:grid; gap:10px; grid-template-columns:1fr 1fr; }
+.choice{
+  min-height:60px; padding:10px 12px; border:2px solid var(--line); background:var(--card);
+  border-radius:14px; font-weight:600; font-size:18px; text-align:center;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1.2;
+}
+.choice small{ font-weight:400; font-size:13px; color:var(--muted); margin-top:3px; }
+.choice.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
+.choice.on small{ color:#d6ecf3; }
+.dot{ display:inline-block; width:14px; height:14px; border-radius:50%; margin-right:8px; vertical-align:-1px; border:1px solid rgba(0,0,0,.25); }
+.stickybar{
+  position:sticky; bottom:var(--navh); margin:22px -16px 0; padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+  background:linear-gradient(to top,var(--bg) 72%,rgba(244,247,249,0));
+}
+.primary{
+  width:100%; min-height:56px; border-radius:14px; background:var(--accent); color:#fff;
+  font-weight:700; font-size:18px;
+}
+.primary:active{ background:var(--accent-d); }
+.primary:disabled{ background:#b7c5cd; }
+.secondary{
+  width:100%; min-height:52px; border-radius:14px; border:2px solid var(--line); background:var(--card);
+  font-weight:600; font-size:17px;
+}
+.danger{ width:100%; min-height:52px; border-radius:14px; background:var(--dsoft); color:var(--danger); font-weight:700; }
+.link{ color:var(--accent); font-weight:600; padding:12px 4px; font-size:16px; }
+.hint{ text-align:center; color:var(--muted); font-size:14px; margin-top:8px; }
+
+/* results */
+.summary{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; text-align:left;
+  background:var(--card); border:2px solid var(--line); border-radius:16px; padding:12px 14px; margin-top:8px;
+}
+.chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.chip{ background:var(--soft); color:var(--accent-d); font-weight:600; font-size:14px; padding:4px 10px; border-radius:999px; }
+.chg{ color:var(--accent); font-weight:700; font-size:15px; flex:none; }
+.count-line{ color:var(--muted); font-size:14px; margin:18px 2px 10px; }
+.card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin:0 0 12px; }
+.lens .top{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+.lens h3{ font-size:22px; line-height:1.2; }
+.price{ font-size:24px; font-weight:800; color:var(--accent-d); white-space:nowrap; }
+.price span{ font-size:13px; font-weight:600; color:var(--muted); margin-left:4px; }
+.ranges{ list-style:none; margin:12px 0 0; padding:0; display:grid; gap:6px; }
+.ranges li{ display:flex; flex-wrap:wrap; gap:4px 16px; background:var(--bg); border-radius:10px; padding:8px 12px; font-size:16px; }
+.ranges em{ font-style:normal; color:var(--muted); font-size:14px; }
+.notes{ margin-top:10px; color:var(--muted); font-size:15px; }
+.empty{ text-align:center; padding:40px 12px; color:var(--muted); }
+.empty b{ display:block; color:var(--ink); font-size:19px; margin-bottom:6px; }
+
+/* manage */
+.pg{ font-size:24px; margin:14px 0 14px; }
+.search{ width:100%; }
+input[type=text],input[type=search],input[type=password],textarea{
+  width:100%; min-height:52px; border:2px solid var(--line); border-radius:12px; padding:10px 14px;
+  font:inherit; background:#fff; color:var(--ink); appearance:none; -webkit-appearance:none;
+}
+textarea{ min-height:84px; resize:vertical; }
+input:focus,textarea:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(11,110,138,.18); }
+.bad{ border-color:var(--danger) !important; }
+.errtxt{ color:var(--danger); font-size:14px; margin:6px 2px 0; }
+.banner{ display:block; width:100%; text-align:left; background:#fff7e0; border:1px solid #f1d98a; color:#6b4e00; border-radius:12px; padding:10px 14px; margin:12px 0 0; font-size:15px; }
+.folder{ background:var(--card); border:1px solid var(--line); border-radius:16px; margin-bottom:10px; overflow:hidden; }
+.fh{ display:flex; align-items:center; gap:10px; width:100%; padding:16px; text-align:left; font-weight:700; font-size:18px; }
+.fh .fname{ flex:1; min-width:0; overflow-wrap:anywhere; }
+.chev{ width:18px; height:18px; color:var(--muted); transition:transform .15s; flex:none; }
+.folder.open .chev{ transform:rotate(90deg); }
+.pill{ background:var(--soft); color:var(--accent-d); font-size:14px; padding:2px 10px; border-radius:999px; font-weight:700; }
+.lrow{ display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; padding:13px 16px; border-top:1px solid var(--line); text-align:left; }
+.lrow b{ display:block; font-size:16px; }
+.lrow span{ color:var(--muted); font-size:14px; }
+.lrow .p{ font-weight:700; color:var(--ink); font-size:16px; white-space:nowrap; }
+.addin{ display:block; width:100%; text-align:left; padding:13px 16px; border-top:1px solid var(--line); color:var(--accent); font-weight:700; font-size:15px; }
+.fab{
+  position:fixed; z-index:6; right:max(16px,calc((100vw - 560px)/2 + 16px)); bottom:calc(var(--navh) + 18px + env(safe-area-inset-bottom));
+  width:60px; height:60px; border-radius:50%; background:var(--accent); color:#fff;
+  font-size:34px; line-height:1; box-shadow:0 6px 18px rgba(11,110,138,.4);
+}
+#mlist{ padding-bottom:90px; }
+
+/* form */
+.fld{ margin-top:20px; }
+.fld > .lbl{ margin:0 0 8px; }
+.sugg-box{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.sugg{ background:var(--soft); color:var(--accent-d); font-weight:600; padding:8px 14px; border-radius:999px; font-size:15px; }
+.range{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:10px; }
+.range-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-weight:700; }
+.rm{ color:var(--danger); font-size:14px; font-weight:600; padding:6px 4px; }
+.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.grid2 label{ font-size:13px; color:var(--muted); font-weight:600; }
+.grid2 .num{ margin-top:4px; }
+.num{ position:relative; }
+.num input{ padding-right:52px; }
+.sign{ position:absolute; right:6px; top:6px; bottom:6px; width:40px; border-radius:8px; background:var(--soft); color:var(--accent-d); font-weight:800; font-size:17px; }
+.addrange{ color:var(--accent); font-weight:700; padding:10px 2px; font-size:16px; }
+.formactions{ display:grid; gap:10px; margin-top:26px; }
+.row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+/* settings */
+.card h2{ font-size:18px; margin-bottom:4px; }
+.muted{ color:var(--muted); font-size:15px; }
+.small{ font-size:14px; }
+.card input{ margin:12px 0 10px; }
+.card .primary,.card .secondary{ margin-top:6px; }
+.chk{ display:flex; gap:10px; align-items:center; margin:2px 2px 16px; color:var(--muted); font-size:15px; }
+.chk input{ width:22px; height:22px; }
+
+/* login */
+.login{ text-align:center; padding-top:9vh; }
+.login svg.logo{ width:84px; height:84px; }
+.login h1{ font-size:28px; margin-top:14px; letter-spacing:.02em; }
+.login .sub{ color:var(--muted); margin:2px 0 28px; }
+.login .choices{ margin-bottom:12px; }
+.login .errtxt{ text-align:left; }
+.login .primary{ margin-top:14px; }
+
+/* nav */
+.nav{ position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); z-index:5; }
+.nav-in{ max-width:560px; margin:0 auto; display:grid; grid-template-columns:repeat(3,1fr); }
+.nav button{ height:64px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:12px; color:var(--muted); }
+.nav button.on{ color:var(--accent); font-weight:700; }
+.nav svg{ width:24px; height:24px; }
+
+/* modal + toast */
+.overlay{ position:fixed; inset:0; background:rgba(16,32,43,.5); display:flex; align-items:flex-end; justify-content:center; z-index:20; padding:16px; }
+.sheet{ background:#fff; border-radius:20px; padding:20px; width:100%; max-width:440px; margin-bottom:env(safe-area-inset-bottom); }
+.sheet h2{ font-size:20px; margin-bottom:8px; }
+.mbody{ color:var(--muted); font-size:16px; }
+.mbody p{ margin:6px 0; }
+.mbody b{ color:var(--ink); }
+.mbody .warn{ color:#8a5a00; font-weight:600; }
+.mact{ display:grid; gap:10px; margin-top:18px; }
+#toast{
+  position:fixed; left:50%; bottom:calc(var(--navh) + 24px + env(safe-area-inset-bottom)); transform:translate(-50%,20px);
+  background:#10202b; color:#fff; padding:12px 18px; border-radius:12px; font-size:15px; opacity:0; pointer-events:none;
+  transition:opacity .2s, transform .2s; z-index:30; max-width:90vw; text-align:center;
+}
+#toast.show{ opacity:1; transform:translate(-50%,0); }
+@media (min-width:600px){ .overlay{ align-items:center; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="modal-root"></div>
+<input type="file" id="file-input" hidden>
+
+<script>
+(function(){
+'use strict';
+
+/* ================= constants ================= */
+var KEY='elshahed_optics_data_v1', SKEY='elshahed_optics_session_v1', RKEY='elshahed_optics_lastrole_v1';
+var INDEXES=['1.56','1.61','1.67','1.74','Unbreakable','Night Drive'];
+var MATS=['1.53 Trivex','1.59 Polycarbonate','1.61'];
+var NI=['1.56','1.61','1.67','1.74'];
+var COATINGS=['AR','Blue Cut'];
+var COLORS=['Brown','Gray'];
+var CYLS=['Normal','High'];
+var DEFAULT_PW={admin:'admin1234', seller:'seller1234'};
+var RANGE_KEYS=['sf','st','cf','ct'];
+
+var LOGO='<img class="logo" src="elshahed_logo2.png" alt="">';
+var ICON={
+  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  chev:'<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+  find:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+  manage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h8M18 6h2M4 12h2M12 12h8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>'
+};
+
+/* ================= helpers ================= */
+function $(s){ return document.querySelector(s); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function cleanName(s){ return String(s==null?'':s).replace(/\s+/g,' ').trim(); }
+function normName(s){ return cleanName(s).toLowerCase(); }
+function idxLabel(i){ return i; }
+
+function hashPw(pw){ /* simple non-cryptographic hash (cyrb53): keeps casual users out */
+  var str='elshahed|'+pw, h1=0xdeadbeef, h2=0x41c6ce57;
+  for(var i=0;i<str.length;i++){ var ch=str.charCodeAt(i); h1=Math.imul(h1^ch,2654435761); h2=Math.imul(h2^ch,1597334677); }
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return 'h'+(4294967296*(2097151&h2)+(h1>>>0)).toString(36);
+}
+
+function normDigits(s){
+  return String(s)
+    .replace(/[٠-٩]/g,function(d){ return String(d.charCodeAt(0)-0x0660); })
+    .replace(/[۰-۹]/g,function(d){ return String(d.charCodeAt(0)-0x06F0); })
+    .replace(/٫/g,'.').replace(/٬/g,'')
+    .replace(/[−–—]/g,'-');
+}
+function parseNum(s){ /* sphere / cylinder: accepts +4, -6, 6,5 (decimal comma), Arabic digits */
+  if(typeof s==='number') return isFinite(s)?s:null;
+  var t=normDigits(s==null?'':s).trim().replace(/\s+/g,'').replace(',','.');
+  if(t==='') return null;
+  if(!/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(t)) return null;
+  var v=parseFloat(t); return isFinite(v)?v:null;
+}
+function parsePrice(s){ /* commas are thousands separators */
+  if(typeof s==='number') return isFinite(s)?s:null;
+  var t=normDigits(s==null?'':s).trim().replace(/[\s,]/g,'');
+  if(t==='') return null;
+  if(!/^(\d+(\.\d*)?|\.\d+)$/.test(t)) return null;
+  var v=parseFloat(t); return isFinite(v)?v:null;
+}
+function isStep(v){ return Math.abs(v*4-Math.round(v*4))<1e-9; }
+function fmtNum(v){ if(v===0) return '0'; return (v>0?'+':'-')+Math.abs(v).toFixed(2); }
+function fmtPrice(p){
+  return Number.isInteger(p) ? p.toLocaleString('en-US') : p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fmtDate(t){
+  if(!t) return 'never';
+  var d=new Date(t), p=function(n){ return (n<10?'0':'')+n; };
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+function lev(a,b){
+  var m=a.length,n=b.length; if(!m) return n; if(!n) return m;
+  /* edit distance where swapping two neighbouring letters (Pixle / Pixel) counts as one edit */
+  var d=[],i,j;
+  for(i=0;i<=m;i++){ d[i]=[i]; }
+  for(j=0;j<=n;j++){ d[0][j]=j; }
+  for(i=1;i<=m;i++){
+    for(j=1;j<=n;j++){
+      var cost=a[i-1]===b[j-1]?0:1;
+      d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+cost);
+      if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1]) d[i][j]=Math.min(d[i][j],d[i-2][j-2]+1);
+    }
+  }
+  return d[m][n];
+}
+
+/* ================= storage ================= */
+var mem={};
+function sget(k){ try{ return localStorage.getItem(k); }catch(e){ return mem[k]===undefined?null:mem[k]; } }
+function sset(k,v){ try{ localStorage.setItem(k,v); }catch(e){ mem[k]=v; } }
+function sdel(k){ try{ localStorage.removeItem(k); }catch(e){} delete mem[k]; }
+
+function sanitizeLens(l){
+  if(!l||typeof l!=='object') return null;
+  var company=cleanName(l.company); if(!company) return null;
+  var index=String(l.index), mat=l.mat||'', nidx=l.nidx||'';
+  if(index==='1.59'){ index='Unbreakable'; mat=mat||MATS[1]; }
+  if(INDEXES.indexOf(index)<0) return null;
+  var nd=index==='Night Drive';
+  if(index==='Unbreakable'){ if(MATS.indexOf(mat)<0) return null; } else mat='';
+  if(nd){ if(NI.indexOf(nidx)<0) return null; } else nidx='';
+  if(!nd&&COATINGS.indexOf(l.coating)<0) return null;
+  if(!nd&&CYLS.indexOf(l.cyl)<0) return null;
+  var photo=!nd&&!!l.photo, color='';
+  if(photo){ color=l.color; if(COLORS.indexOf(color)<0) return null; }
+  var price=parsePrice(l.price); if(price===null) return null;
+  if(!Array.isArray(l.ranges)||!l.ranges.length) return null;
+  var ranges=[];
+  for(var i=0;i<l.ranges.length;i++){
+    var r=l.ranges[i]; if(!r) return null;
+    var o={}; for(var k=0;k<RANGE_KEYS.length;k++){ var v=parseNum(r[RANGE_KEYS[k]]); if(v===null) return null; o[RANGE_KEYS[k]]=v; }
+    ranges.push(o);
+  }
+  return {id:String(l.id||uid()), company:company, index:index, mat:mat, nidx:nidx, coating:nd?'':l.coating, photo:photo, color:color,
+          cyl:nd?'':l.cyl, ranges:ranges, price:price, notes:String(l.notes||'').trim(), created:Number(l.created)||Date.now()};
+}
+function loadDb(){
+  var d=null;
+  try{ var raw=sget(KEY); if(raw) d=JSON.parse(raw); }catch(e){ d=null; }
+  if(!d||typeof d!=='object') d={};
+  d.lenses=Array.isArray(d.lenses)?d.lenses.map(sanitizeLens).filter(Boolean):[];
+  d.auth=(d.auth&&typeof d.auth==='object')?d.auth:{};
+  if(!d.auth.admin) d.auth.admin=hashPw(DEFAULT_PW.admin);
+  if(!d.auth.seller) d.auth.seller=hashPw(DEFAULT_PW.seller);
+  d.updatedAt=Number(d.updatedAt)||0;
+  d.rx=typeof d.rx==='string'?d.rx:'';
+  return d;
+}
+function saveDb(){ sset(KEY,JSON.stringify(db)); }
+function usingDefault(role){ return db.auth[role]===hashPw(DEFAULT_PW[role]); }
+
+/* ================= company folders ================= */
+function companyMap(pool){
+  var m=new Map(), list=pool||db.lenses;
+  list.forEach(function(l){
+    var k=normName(l.company);
+    if(!m.has(k)) m.set(k,{key:k,name:cleanName(l.company),lenses:[]});
+    m.get(k).lenses.push(l);
+  });
+  return m;
+}
+function findSimilar(name,pool){
+  var k=normName(name); if(k.length<4) return null;
+  var m=companyMap(pool); if(m.has(k)) return null;
+  var best=null,bd=99;
+  m.forEach(function(c,key){
+    var lim=Math.max(k.length,key.length)>=6?2:1, d=lev(k,key);
+    if(d<=lim&&d<bd){ bd=d; best=c; }
+  });
+  return best;
+}
+function findSameOptions(f,pool){
+  var key=normName(f.company);
+  for(var i=0;i<pool.length;i++){
+    var l=pool[i];
+    if(normName(l.company)===key&&l.index===f.index&&(l.mat||'')===(f.mat||'')&&(l.nidx||'')===(f.nidx||'')&&(l.coating||'')===(f.coating||'')&&l.photo===!!f.photo&&(l.color||'')===(f.photo?f.color:'')&&(l.cyl||'')===(f.cyl||'')) return l;
+  }
+  return null;
+}
+function sortLenses(a,b){
+  return INDEXES.indexOf(a.index)-INDEXES.indexOf(b.index) || COATINGS.indexOf(a.coating)-COATINGS.indexOf(b.coating) ||
+         (a.photo?1:0)-(b.photo?1:0) || (a.color||'').localeCompare(b.color||'') || CYLS.indexOf(a.cyl)-CYLS.indexOf(b.cyl) || a.price-b.price;
+}
+
+/* ================= state ================= */
+var db=loadDb();
+var session=sget(SKEY); if(session!=='admin'&&session!=='seller') session=null;
+var screen=session?'find':'login';
+var sel={index:null,coating:null,photo:false,color:null,cyl:null};
+var manage={q:'',open:new Set()};
+var form=null;
+var loginRole=sget(RKEY)==='admin'?'admin':'seller';
+var loginErr='';
+var subDepth=0, ignorePop=0;
+
+/* ================= rendering ================= */
+function choices(action,opts,cur,extra){
+  return '<div class="choices" role="group">'+opts.map(function(o){
+    var on=o.v===cur;
+    return '<button type="button" class="choice'+(on?' on':'')+'" data-a="'+action+'" data-v="'+esc(o.v)+'" aria-pressed="'+on+'">'+(o.html||esc(o.label))+(o.sub?'<small>'+esc(o.sub)+'</small>':'')+'</button>';
+  }).join('')+'</div>';
+}
+var OPT={
+  index:INDEXES.map(function(i){ return {v:i,label:i}; }),
+  mat:MATS.map(function(m){ return {v:m,label:m}; }),
+  nidx:NI.map(function(n){ return {v:n,label:n}; }),
+  coating:[{v:'AR',label:'AR'},{v:'Blue Cut',label:'Blue Cut'}],
+  photo:[{v:'no',label:'No'},{v:'yes',label:'Yes'}],
+  color:[{v:'Brown',html:'<span class="dot" style="background:#7b4a2a"></span>Brown'},{v:'Gray',html:'<span class="dot" style="background:#7d858c"></span>Gray'}],
+  cyl:[{v:'Normal',label:'Normal',sub:'0 to 2.00'},{v:'High',label:'High',sub:'2.25 to 4.00'}]
+};
+
+function header(){
+  if(screen==='form'){
+    return '<div class="hdr"><button class="back" data-a="form-back" aria-label="Back">'+ICON.back+'</button><h1 class="ttl">'+(form&&form.id?'Edit lens':'Add lens')+'</h1></div>';
+  }
+  return '<div class="hdr"><div class="brand">'+LOGO+'<div><b>ELSHAHED Optics</b><small>Lens Finder · '+(session==='admin'?'Admin':'Seller')+'</small></div></div><button class="out" data-a="logout">Log out</button></div>';
+}
+function nav(){
+  if(session!=='admin'||screen==='form') return '';
+  var tab=(screen==='settings')?'settings':(screen==='manage'?'manage':'find');
+  function b(t,label,icon){ return '<button data-a="nav" data-v="'+t+'" class="'+(tab===t?'on':'')+'">'+icon+label+'</button>'; }
+  return '<nav class="nav"><div class="nav-in">'+b('find','Find Lens',ICON.find)+b('manage','Manage',ICON.manage)+b('settings','Settings',ICON.settings)+'</div></nav>';
+}
+
+function viewLogin(){
+  return '<div class="login">'+LOGO+'<h1>ELSHAHED Optics</h1><p class="sub">Lens Finder</p>'+
+    '<div class="choices" role="group">'+
+      '<button type="button" class="choice'+(loginRole==='seller'?' on':'')+'" data-a="role" data-v="seller">Seller</button>'+
+      '<button type="button" class="choice'+(loginRole==='admin'?' on':'')+'" data-a="role" data-v="admin">Admin</button>'+
+    '</div>'+
+    '<input type="password" id="pw" placeholder="Password" autocomplete="current-password" aria-label="Password">'+
+    '<p class="errtxt" id="loginerr">'+esc(loginErr)+'</p>'+
+    '<button class="primary" data-a="login">Log in</button>'+
+    '<div style="margin-top:22px"><button class="link" data-a="import-start">Update lens data from a file</button></div>'+
+  '</div>';
+}
+
+function viewFind(){
+  var nd=sel.index==='Night Drive', miss=[];
+  if(!sel.index) miss.push('Index');
+  if(!nd){
+    if(!sel.coating) miss.push('Coating');
+    if(sel.photo&&!sel.color) miss.push('Photo color');
+    if(!sel.cyl) miss.push('Cylinder');
+  }
+  return '<div class="lbl">Index</div>'+choices('f-index',OPT.index.concat([{v:'RX',label:'RX',sub:'Opens Drive link'}]),sel.index)+
+    (nd?'':'<div class="lbl">Coating</div>'+choices('f-coating',OPT.coating,sel.coating)+
+    '<div class="lbl">Photochromic</div>'+choices('f-photo',OPT.photo,sel.photo?'yes':'no')+
+    (sel.photo?'<div class="lbl">Photo color</div>'+choices('f-color',OPT.color,sel.color):'')+
+    '<div class="lbl">Cylinder</div>'+choices('f-cyl',OPT.cyl,sel.cyl))+
+    (session==='seller'?'<div style="text-align:center;margin-top:26px"><button class="link" data-a="import-start">Update lens data from a file</button></div>':'')+
+    (nd?'':'<div class="stickybar"><button class="primary" data-a="search"'+(miss.length?' disabled':'')+'>Search</button>'+
+    (miss.length?'<p class="hint">Still needed: '+miss.join(', ')+'</p>':'')+'</div>');
+}
+
+function matches(){
+  return db.lenses.filter(function(l){
+    return l.index===sel.index&&(sel.index==='Night Drive'||(l.coating===sel.coating&&l.photo===sel.photo&&(!sel.photo||l.color===sel.color)&&l.cyl===sel.cyl));
+  }).sort(function(a,b){ return a.price-b.price || a.company.localeCompare(b.company); });
+}
+function lensTag(l){ return l.index==='Unbreakable'?l.mat:(l.index==='Night Drive'?'Night Drive '+l.nidx:''); }
+function rowTitle(l){ if(l.index==='Night Drive') return 'Night Drive '+l.nidx; return (l.index==='Unbreakable'?'Unbreakable '+l.mat:l.index)+' · '+l.coating+(l.photo?' · Photo '+l.color:''); }
+function rowSub(l){ var nd=l.index==='Night Drive'; return (nd?'':l.cyl+' cylinder')+(l.ranges.length>1?(nd?'':' · ')+l.ranges.length+' ranges':''); }
+function lensCard(l){
+  return '<article class="card lens"><div class="top"><h3>'+esc(l.company)+'</h3><div class="price">'+fmtPrice(l.price)+'<span>EGP</span></div></div>'+(lensTag(l)?'<p class="muted">'+esc(lensTag(l))+'</p>':'')+
+    '<ul class="ranges">'+l.ranges.map(function(r){
+      return '<li><span><em>Sphere</em> '+fmtNum(r.sf)+' to '+fmtNum(r.st)+'</span><span><em>Cylinder</em> '+fmtNum(r.cf)+' to '+fmtNum(r.ct)+'</span></li>';
+    }).join('')+'</ul>'+(l.notes?'<p class="notes">'+esc(l.notes)+'</p>':'')+'</article>';
+}
+function viewResults(){
+  var list=matches();
+  var chips=sel.index==='Night Drive'?['Night Drive']:[idxLabel(sel.index),sel.coating,sel.photo?'Photochromic '+sel.color:'No photochromic',sel.cyl+' cylinder'];
+  return '<button class="summary" data-a="f-back" aria-label="Change options"><span class="chips">'+chips.map(function(c){ return '<span class="chip">'+esc(c)+'</span>'; }).join('')+'</span><span class="chg">Change</span></button>'+
+    (list.length
+      ? '<p class="count-line">'+list.length+' result'+(list.length===1?'':'s')+' · lowest price first</p>'+list.map(lensCard).join('')
+      : '<div class="empty"><b>No company found for these options</b><p>Try a different index or coating, or check the cylinder type.</p></div>');
+}
+
+function manageListHtml(){
+  var q=normName(manage.q);
+  var groups=Array.from(companyMap().values()).sort(function(a,b){ return a.name.localeCompare(b.name,undefined,{sensitivity:'base'}); });
+  if(!groups.length) return '<div class="empty"><b>No lenses yet</b><p>Tap + to add your first lens.</p></div>';
+  var shown=q?groups.filter(function(g){ return g.key.indexOf(q)>=0; }):groups;
+  if(!shown.length) return '<div class="empty"><b>No company matches “'+esc(manage.q.trim())+'”</b></div>';
+  return shown.map(function(g){
+    var open=!!q||manage.open.has(g.key);
+    var rows=open?g.lenses.slice().sort(sortLenses).map(function(l){
+      return '<button class="lrow" data-a="edit" data-id="'+esc(l.id)+'"><div><b>'+esc(rowTitle(l))+'</b><span>'+esc(rowSub(l))+'</span></div><div class="p">'+fmtPrice(l.price)+'</div></button>';
+    }).join('')+'<button class="addin" data-a="add-in" data-k="'+esc(g.key)+'">+ Add lens to '+esc(g.name)+'</button>':'';
+    return '<section class="folder'+(open?' open':'')+'"><button class="fh" data-a="toggle" data-k="'+esc(g.key)+'" aria-expanded="'+open+'">'+ICON.chev+'<span class="fname">'+esc(g.name)+'</span><span class="pill">'+g.lenses.length+'</span></button>'+rows+'</section>';
+  }).join('');
+}
+function viewManage(){
+  var warn=(usingDefault('admin')||usingDefault('seller'))
+    ? '<button class="banner" data-a="nav" data-v="settings">A default password is still in use. Tap to change it in Settings.</button>' : '';
+  return '<h1 class="pg">Manage Lenses</h1><input type="search" class="search" id="mq" data-field="mq" placeholder="Search company" value="'+esc(manage.q)+'" autocomplete="off" aria-label="Search company">'+warn+
+    '<div id="mlist" style="margin-top:14px">'+manageListHtml()+'</div>'+
+    '<button class="fab" data-a="add" aria-label="Add lens">+</button>';
+}
+
+function rangeBlock(r,i,total,err){
+  var e=err||{}, anyBad=RANGE_KEYS.some(function(k){ return e['r:'+i+':'+k]; });
+  function fld(k,label){
+    var bad=e['r:'+i+':'+k]?' bad':'';
+    return '<label>'+label+'<div class="num"><input type="text" inputmode="decimal" class="'+bad.trim()+'" data-field="r:'+i+':'+k+'" value="'+esc(r[k])+'" placeholder="0" autocomplete="off"><button type="button" class="sign" tabindex="-1" data-a="sign" data-i="'+i+'" data-k="'+k+'" aria-label="Toggle minus">±</button></div></label>';
+  }
+  return '<div class="range"><div class="range-head"><span>'+(total>1?'Range '+(i+1):'Range')+'</span>'+(i>0?'<button class="rm" data-a="rm-range" data-i="'+i+'">Remove</button>':'')+'</div>'+
+    '<div class="grid2">'+fld('sf','Sphere from')+fld('st','Sphere to')+fld('cf','Cylinder from')+fld('ct','Cylinder to')+'</div>'+
+    (anyBad?'<p class="errtxt" data-err="r:'+i+'">Fill in all four values, in steps of 0.25 (for example 0 or -6.00).</p>':'')+'</div>';
+}
+function viewForm(){
+  var f=form, e=f.errors||{}, nd=f.index==='Night Drive';
+  function err(k){ return e[k]?'<p class="errtxt" data-err="'+k+'">'+esc(e[k])+'</p>':''; }
+  return '<div class="fld"><div class="lbl">Company</div><input type="text" id="f-company" data-field="company" value="'+esc(f.company)+'" placeholder="e.g. Pixel" autocomplete="off" class="'+(e.company?'bad':'')+'"><div class="sugg-box" id="sugg"></div>'+err('company')+'</div>'+
+    '<div class="fld"><div class="lbl">Index</div>'+choices('x-index',OPT.index,f.index)+err('index')+'</div>'+
+    (f.index==='Unbreakable'?'<div class="fld"><div class="lbl">Material</div>'+choices('x-mat',OPT.mat,f.mat)+err('mat')+'</div>':'')+
+    (nd?'<div class="fld"><div class="lbl">Night Drive index</div>'+choices('x-nidx',OPT.nidx,f.nidx)+err('nidx')+'</div>':
+    '<div class="fld"><div class="lbl">Coating</div>'+choices('x-coating',OPT.coating,f.coating)+err('coating')+'</div>'+
+    '<div class="fld"><div class="lbl">Photochromic</div>'+choices('x-photo',OPT.photo,f.photo?'yes':'no')+'</div>'+
+    (f.photo?'<div class="fld"><div class="lbl">Photo color</div>'+choices('x-color',OPT.color,f.color)+err('color')+'</div>':'')+
+    '<div class="fld"><div class="lbl">Cylinder type</div>'+choices('x-cyl',OPT.cyl,f.cyl)+err('cyl')+'</div>')+
+    '<div class="fld"><div class="lbl">Ranges</div>'+f.ranges.map(function(r,i){ return rangeBlock(r,i,f.ranges.length,e); }).join('')+
+      '<button class="addrange" data-a="add-range">+ Add another range</button></div>'+
+    '<div class="fld"><div class="lbl">Price (EGP)</div><input type="text" inputmode="decimal" data-field="price" value="'+esc(f.price)+'" placeholder="e.g. 800" autocomplete="off" class="'+(e.price?'bad':'')+'">'+err('price')+'</div>'+
+    '<div class="fld"><div class="lbl">Notes (optional)</div><textarea data-field="notes" placeholder="Anything the seller should know">'+esc(f.notes)+'</textarea></div>'+
+    '<div class="formactions"><button class="primary" data-a="form-save">Save</button>'+
+      (f.id?'<div class="row2"><button class="secondary" data-a="form-dup">Duplicate</button><button class="danger" data-a="form-del">Delete</button></div>':'')+'</div>';
+}
+
+function viewSettings(){
+  var n=db.lenses.length, canShare=!!(navigator.share&&navigator.canShare);
+  return '<h1 class="pg">Settings</h1>'+
+    '<div class="card"><h2>Seller password</h2><p class="muted">Employees log in with this. Change it when someone leaves. Other phones get the new password when you import a fresh data file there.</p>'+
+      '<input type="password" id="pw-seller" placeholder="New seller password" autocomplete="new-password"><button class="primary" data-a="save-pw" data-v="seller">Save seller password</button></div>'+
+    '<div class="card"><h2>Admin password</h2><p class="muted">For you and your father. This changes only on this phone.</p>'+
+      '<input type="password" id="pw-admin" placeholder="New admin password" autocomplete="new-password"><button class="primary" data-a="save-pw" data-v="admin">Save admin password</button></div>'+
+    '<label class="chk"><input type="checkbox" data-a="show-pw"> Show passwords</label>'+
+    '<div class="card"><h2>RX link</h2><p class="muted">Google Drive link for the RX manufacturers. Share the folder as “Anyone with the link can view”. It travels inside the data file.</p><input type="text" id="rx-link" placeholder="https://drive.google.com/..." value="'+esc(db.rx)+'"><button class="primary" data-a="save-rx">Save RX link</button></div>'+
+    '<div class="card"><h2>Lens data</h2><p class="muted">'+n+' lens'+(n===1?'':'es')+' · last changed '+esc(fmtDate(db.updatedAt))+'</p>'+
+      '<p class="muted small" style="margin-top:8px">The data lives on this phone only. To update other phones: export here, send the file (WhatsApp works), then on each phone tap “Update lens data from a file” on the login screen, or Import below.</p>'+
+      '<div style="height:12px"></div><div class="row2">'+(canShare?'<button class="secondary" data-a="export-share">Share file</button>':'')+'<button class="secondary" data-a="export-dl"'+(canShare?'':' style="grid-column:1/-1"')+'>Download file</button></div>'+
+      '<button class="secondary" data-a="import-start">Import file</button></div>';
+}
+
+function render(keep){
+  var y=window.scrollY||0, app=$('#app');
+  if(!session){
+    document.body.classList.remove('admin');
+    app.innerHTML=viewLogin();
+  } else {
+    if(session!=='admin'&&(screen==='manage'||screen==='form'||screen==='settings')) screen='find';
+    var body='';
+    if(screen==='find') body=viewFind();
+    else if(screen==='results') body=viewResults();
+    else if(screen==='manage') body=viewManage();
+    else if(screen==='form') body=viewForm();
+    else if(screen==='settings') body=viewSettings();
+    document.body.classList.toggle('admin',session==='admin'&&screen!=='form');
+    app.innerHTML=header()+'<main>'+body+'</main>'+nav();
+  }
+  try{ window.scrollTo(0,keep?y:0); }catch(e){}
+  if(screen==='form'&&session) updateSugg();
+}
+function renderManageList(){ var el=$('#mlist'); if(el) el.innerHTML=manageListHtml(); }
+function updateSugg(){
+  var box=$('#sugg'); if(!box||!form) return;
+  var q=normName(form.company), typed=cleanName(form.company);
+  if(!q){ box.innerHTML=''; return; }
+  var names=Array.from(companyMap().values()).map(function(c){ return c.name; })
+    .filter(function(n){ return normName(n).indexOf(q)>=0&&n!==typed; }).slice(0,5);
+  box.innerHTML=names.map(function(n){ return '<button type="button" class="sugg" data-a="pick-company" data-v="'+esc(n)+'">'+esc(n)+'</button>'; }).join('');
+}
+
+/* ================= modal + toast ================= */
+var modalActs=[];
+function openModal(title,bodyHtml,acts){
+  modalActs=acts;
+  $('#modal-root').innerHTML='<div class="overlay"><div class="sheet" role="dialog" aria-modal="true"><h2>'+esc(title)+'</h2><div class="mbody">'+bodyHtml+'</div><div class="mact">'+
+    acts.map(function(a,i){ return '<button class="'+(a.cls||'secondary')+'" data-ma="'+i+'">'+esc(a.label)+'</button>'; }).join('')+'</div></div></div>';
+}
+function closeModal(){ $('#modal-root').innerHTML=''; modalActs=[]; }
+var toastT;
+function toast(msg){
+  var t=$('#toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(function(){ t.classList.remove('show'); },2600);
+}
+
+/* ================= navigation (with Android back button) ================= */
+function enterSub(name){
+  screen=name;
+  try{ history.pushState({sub:1},''); subDepth=1; }catch(e){ subDepth=0; }
+  render();
+}
+function leaveSub(to){
+  screen=to; render();
+  if(subDepth){ subDepth=0; ignorePop++; try{ history.back(); }catch(e){ ignorePop--; } }
+}
+function go(to){ if(subDepth) leaveSub(to); else { screen=to; render(); } }
+window.addEventListener('popstate',function(){
+  if(ignorePop>0){ ignorePop--; return; }
+  if(!subDepth) return;
+  subDepth=0;
+  if(screen==='results'){ screen='find'; render(); }
+  else if(screen==='form'){
+    if(form&&form.dirty){ try{ history.pushState({sub:1},''); subDepth=1; }catch(e){} askDiscard(); }
+    else { form=null; screen='manage'; render(); }
+  }
+});
+
+/* ================= login / logout ================= */
+function doLogin(){
+  var pw=($('#pw')||{}).value||'';
+  if(hashPw(pw)===db.auth[loginRole]){
+    session=loginRole; sset(SKEY,session); sset(RKEY,loginRole); loginErr='';
+    screen='find'; render();
+  } else {
+    loginErr='Wrong password'; var el=$('#loginerr'); if(el) el.textContent=loginErr;
+  }
+}
+function doLogout(){
+  session=null; sdel(SKEY); form=null; showFindReset();
+  if(subDepth){ subDepth=0; ignorePop++; try{ history.back(); }catch(e){ ignorePop--; } }
+  screen='login'; loginErr=''; render();
+}
+function showFindReset(){ sel={index:null,coating:null,photo:false,color:null,cyl:null}; manage.q=''; }
+
+/* ================= form logic ================= */
+function blankRange(){ return {sf:'',st:'',cf:'',ct:''}; }
+function openForm(lens,prefill){
+  form=lens?{
+    id:lens.id, company:lens.company, index:lens.index, mat:lens.mat||null, nidx:lens.nidx||null, coating:lens.coating, photo:lens.photo, color:lens.color||null, cyl:lens.cyl,
+    ranges:lens.ranges.map(function(r){ return {sf:fmtNum(r.sf),st:fmtNum(r.st),cf:fmtNum(r.cf),ct:fmtNum(r.ct)}; }),
+    price:String(lens.price), notes:lens.notes||'', errors:{}, dirty:false, skipSimilar:false, skipDup:false
+  }:{
+    id:null, company:prefill||'', index:null, mat:null, nidx:null, coating:null, photo:false, color:null, cyl:null,
+    ranges:[blankRange()], price:'', notes:'', errors:{}, dirty:false, skipSimilar:false, skipDup:false
+  };
+  enterSub('form');
+}
+function validateForm(f){
+  var err={};
+  if(!cleanName(f.company)) err.company='Enter the company name';
+  if(!f.index) err.index='Choose an index';
+  var nd=f.index==='Night Drive';
+  if(f.index==='Unbreakable'&&!f.mat) err.mat='Choose the material';
+  if(nd&&!f.nidx) err.nidx='Choose the index';
+  if(!nd&&!f.coating) err.coating='Choose AR or Blue Cut';
+  if(!nd&&f.photo&&!f.color) err.color='Choose Brown or Gray';
+  if(!nd&&!f.cyl) err.cyl='Choose Normal or High';
+  f.ranges.forEach(function(r,i){
+    RANGE_KEYS.forEach(function(k){
+      var v=parseNum(r[k]);
+      if(v===null||!isStep(v)) err['r:'+i+':'+k]='bad';
+    });
+  });
+  var p=parsePrice(f.price); if(p===null||p<=0) err.price='Enter the price';
+  return err;
+}
+function refreshErrors(){
+  if(!form||!form.errors) return;
+  var keys=Object.keys(form.errors); if(!keys.length) return;
+  var fresh=validateForm(form);
+  keys.forEach(function(k){
+    if(fresh[k]) return;
+    delete form.errors[k];
+    var inp=document.querySelector('[data-field="'+k+'"]'); if(inp) inp.classList.remove('bad');
+    var p=document.querySelector('[data-err="'+k+'"]'); if(p) p.remove();
+  });
+  form.ranges.forEach(function(r,i){
+    var any=RANGE_KEYS.some(function(k){ return form.errors['r:'+i+':'+k]; });
+    if(!any){ var p=document.querySelector('[data-err="r:'+i+'"]'); if(p) p.remove(); }
+  });
+}
+function trySave(){
+  form.errors=validateForm(form);
+  if(Object.keys(form.errors).length){
+    render(true);
+    var first=document.querySelector('.bad,.errtxt'); if(first&&first.scrollIntoView) first.scrollIntoView({block:'center'});
+    return;
+  }
+  var name=cleanName(form.company);
+  var others=db.lenses.filter(function(l){ return l.id!==form.id; });
+  var key=normName(name), canon=null;
+  for(var i=0;i<others.length;i++){ if(normName(others[i].company)===key){ canon=others[i]; break; } }
+  if(canon){ form.company=canon.company; stepDup(); return; }
+  form.company=name;
+  var sim=form.skipSimilar?null:findSimilar(name,others);
+  if(sim){
+    openModal('Did you mean “'+sim.name+'”?','<p>You typed <b>'+esc(name)+'</b>. A company with a very similar name already exists.</p>',[
+      {label:'Use “'+sim.name+'”',cls:'primary',fn:function(){ form.company=sim.name; stepDup(); }},
+      {label:'Keep “'+name+'”',fn:function(){ form.skipSimilar=true; stepDup(); }},
+      {label:'Go back and edit'}
+    ]);
+    return;
+  }
+  stepDup();
+}
+function stepDup(){
+  var others=db.lenses.filter(function(l){ return l.id!==form.id; });
+  var same=form.skipDup?null:findSameOptions(form,others);
+  if(same){
+    openModal('Same options already saved','<p><b>'+esc(same.company)+'</b> already has a lens with '+esc(idxLabel(same.index))+', '+esc(same.coating)+(same.photo?', photochromic '+esc(same.color):'')+', '+esc(same.cyl)+' cylinder, at <b>'+fmtPrice(same.price)+' EGP</b>.</p><p>Save this one as well?</p>',[
+      {label:'Save anyway',cls:'primary',fn:function(){ form.skipDup=true; commit(); }},
+      {label:'Go back and edit'}
+    ]);
+    return;
+  }
+  commit();
+}
+function commit(){
+  var f=form;
+  var lens={
+    id:f.id||uid(), company:cleanName(f.company), index:f.index, mat:f.index==='Unbreakable'?f.mat:'', nidx:f.index==='Night Drive'?f.nidx:'', coating:f.coating||'', photo:!!f.photo, color:f.photo?f.color:'', cyl:f.cyl||'',
+    ranges:f.ranges.map(function(r){ return {sf:parseNum(r.sf),st:parseNum(r.st),cf:parseNum(r.cf),ct:parseNum(r.ct)}; }),
+    price:parsePrice(f.price), notes:(f.notes||'').trim(), created:Date.now()
+  };
+  var i=f.id?db.lenses.findIndex(function(l){ return l.id===f.id; }):-1;
+  if(i>=0){ lens.created=db.lenses[i].created; db.lenses[i]=lens; } else db.lenses.push(lens);
+  db.updatedAt=Date.now(); saveDb();
+  manage.open.add(normName(lens.company));
+  form=null; leaveSub('manage'); toast('Saved to '+lens.company);
+}
+function askDiscard(){
+  openModal('Discard changes?','<p>You have unsaved changes on this lens.</p>',[
+    {label:'Discard',cls:'danger',fn:function(){ form=null; leaveSub('manage'); }},
+    {label:'Keep editing'}
+  ]);
+}
+function askDelete(){
+  var l=db.lenses.find(function(x){ return x.id===form.id; }); if(!l) return;
+  openModal('Delete this lens?','<p><b>'+esc(l.company)+'</b> · '+esc(rowTitle(l))+(l.cyl?' · '+esc(l.cyl)+' cylinder':'')+'</p><p>This cannot be undone.</p>',[
+    {label:'Delete',cls:'danger',fn:function(){
+      db.lenses=db.lenses.filter(function(x){ return x.id!==l.id; });
+      db.updatedAt=Date.now(); saveDb(); form=null; leaveSub('manage'); toast('Deleted');
+    }},
+    {label:'Cancel'}
+  ]);
+}
+function duplicateForm(){
+  form=Object.assign({},form,{id:null,errors:{},dirty:true,skipSimilar:false,skipDup:false,ranges:form.ranges.map(function(r){ return Object.assign({},r); })});
+  render(); toast('Copied. Change what is different, then Save.');
+}
+
+/* ================= export / import ================= */
+function exportText(){
+  return JSON.stringify({app:'elshahed-optics',version:1,exportedAt:new Date().toISOString(),updatedAt:db.updatedAt,sellerPass:db.auth.seller,rx:db.rx,lenses:db.lenses},null,1);
+}
+function exportName(){ var d=new Date(),p=function(n){ return (n<10?'0':'')+n; }; return 'elshahed-lenses-'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'.json'; }
+function exportDownload(){
+  if(session!=='admin') return;
+  var blob=new Blob([exportText()],{type:'application/json'}), url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download=exportName(); document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); },4000); toast('File saved to Downloads');
+}
+function exportShare(){
+  if(session!=='admin') return;
+  try{
+    var file=new File([exportText()],exportName(),{type:'text/plain'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:'ELSHAHED lens data'}).catch(function(e){ if(e&&e.name!=='AbortError') exportDownload(); });
+      return;
+    }
+  }catch(e){}
+  exportDownload();
+}
+function startImport(){ var fi=$('#file-input'); fi.value=''; fi.click(); }
+function handleImport(text){
+  var data=null; try{ data=JSON.parse(text); }catch(e){}
+  var arr=Array.isArray(data)?data:(data&&data.lenses);
+  if(!Array.isArray(arr)){ openModal('Could not read file','<p>This does not look like an ELSHAHED lens data file.</p>',[{label:'OK',cls:'primary'}]); return; }
+  var lenses=arr.map(sanitizeLens).filter(Boolean), skipped=arr.length-lenses.length;
+  if(!lenses.length){ openModal('Nothing to import','<p>The file has no valid lenses.</p>',[{label:'OK',cls:'primary'}]); return; }
+  var ft=Number(data&&data.updatedAt)||0, older=ft&&db.updatedAt&&ft<db.updatedAt;
+  openModal('Replace lens data?','<p>The file has <b>'+lenses.length+'</b> lens'+(lenses.length===1?'':'es')+(skipped?' ('+skipped+' damaged and skipped)':'')+'.</p><p>This replaces the <b>'+db.lenses.length+'</b> now on this phone.</p>'+(older?'<p class="warn">This file is older than the data on this phone.</p>':''),[
+    {label:'Replace',cls:'primary',fn:function(){
+      db.lenses=lenses; db.updatedAt=ft||Date.now();
+      if(data&&typeof data.sellerPass==='string'&&/^h[0-9a-z]+$/.test(data.sellerPass)) db.auth.seller=data.sellerPass;
+      if(data&&typeof data.rx==='string') db.rx=data.rx;
+      saveDb(); manage.open=new Set(); render(true); toast('Imported '+lenses.length+' lenses');
+    }},
+    {label:'Cancel'}
+  ]);
+}
+
+/* ================= events ================= */
+var H={
+  'role':function(el){
+    loginRole=el.dataset.v; loginErr='';
+    document.querySelectorAll('[data-a="role"]').forEach(function(b){ var on=b.dataset.v===loginRole; b.classList.toggle('on',on); });
+    var e=$('#loginerr'); if(e) e.textContent='';
+  },
+  'login':doLogin,
+  'logout':doLogout,
+  'nav':function(el){ go(el.dataset.v); },
+  'f-index':function(el){
+    var v=el.dataset.v;
+    if(v==='RX'){ if(db.rx) window.open(db.rx,'_blank'); else toast('RX link is not set yet. The admin can add it in Settings.'); return; }
+    sel.index=v; if(v==='Night Drive') enterSub('results'); else render(true);
+  },
+  'save-rx':function(){
+    var v=($('#rx-link').value||'').trim();
+    if(v&&!/^https?:\/\//i.test(v)){ toast('The link must start with https://'); return; }
+    db.rx=v; db.updatedAt=Date.now(); saveDb(); toast('RX link saved');
+  },
+  'f-coating':function(el){ sel.coating=el.dataset.v; render(true); },
+  'f-photo':function(el){ sel.photo=el.dataset.v==='yes'; if(!sel.photo) sel.color=null; render(true); },
+  'f-color':function(el){ sel.color=el.dataset.v; render(true); },
+  'f-cyl':function(el){ sel.cyl=el.dataset.v; render(true); },
+  'search':function(){ enterSub('results'); },
+  'f-back':function(){ leaveSub('find'); },
+  'toggle':function(el){ var k=el.dataset.k; if(manage.open.has(k)) manage.open.delete(k); else manage.open.add(k); renderManageList(); },
+  'add':function(){ openForm(null); },
+  'add-in':function(el){ var g=companyMap().get(el.dataset.k); openForm(null,g?g.name:''); },
+  'edit':function(el){ var l=db.lenses.find(function(x){ return x.id===el.dataset.id; }); if(l) openForm(l); },
+  'form-back':function(){ if(form&&form.dirty) askDiscard(); else { form=null; leaveSub('manage'); } },
+  'form-save':trySave,
+  'form-dup':duplicateForm,
+  'form-del':askDelete,
+  'x-index':function(el){ var v=el.dataset.v; form.index=v; if(v!=='Unbreakable') form.mat=null; if(v==='Night Drive'){ form.coating=''; form.photo=false; form.color=null; form.cyl=''; } else form.nidx=null; form.dirty=true; delete form.errors.index; render(true); },
+  'x-mat':function(el){ form.mat=el.dataset.v; form.dirty=true; delete form.errors.mat; render(true); },
+  'x-nidx':function(el){ form.nidx=el.dataset.v; form.dirty=true; delete form.errors.nidx; render(true); },
+  'x-coating':function(el){ form.coating=el.dataset.v; form.dirty=true; delete form.errors.coating; render(true); },
+  'x-photo':function(el){ form.photo=el.dataset.v==='yes'; if(!form.photo) form.color=null; form.dirty=true; render(true); },
+  'x-color':function(el){ form.color=el.dataset.v; form.dirty=true; delete form.errors.color; render(true); },
+  'x-cyl':function(el){ form.cyl=el.dataset.v; form.dirty=true; delete form.errors.cyl; render(true); },
+  'add-range':function(){ form.ranges.push(blankRange()); form.dirty=true; render(true); },
+  'rm-range':function(el){ var i=+el.dataset.i; if(i>0){ form.ranges.splice(i,1); form.dirty=true; form.errors={}; render(true); } },
+  'sign':function(el){
+    var i=+el.dataset.i, k=el.dataset.k, inp=document.querySelector('[data-field="r:'+i+':'+k+'"]'); if(!inp) return;
+    var v=normDigits(inp.value).trim();
+    if(v.charAt(0)==='-') v=v.slice(1); else if(v.charAt(0)==='+') v='-'+v.slice(1); else v='-'+v;
+    inp.value=v; form.ranges[i][k]=v; form.dirty=true; inp.focus(); refreshErrors();
+  },
+  'pick-company':function(el){
+    form.company=el.dataset.v; form.dirty=true; var inp=$('#f-company'); if(inp) inp.value=form.company; updateSugg(); refreshErrors();
+  },
+  'save-pw':function(el){
+    var role=el.dataset.v, inp=$('#pw-'+role), v=inp?inp.value:'';
+    if(v.length<4){ toast('Use at least 4 characters'); return; }
+    db.auth[role]=hashPw(v); saveDb(); inp.value=''; toast((role==='seller'?'Seller':'Admin')+' password changed');
+    var b=document.querySelector('.banner'); if(b&&!usingDefault('admin')&&!usingDefault('seller')) b.remove();
+  },
+  'show-pw':function(el){ ['#pw-seller','#pw-admin'].forEach(function(s){ var i=$(s); if(i) i.type=el.checked?'text':'password'; }); },
+  'export-share':exportShare,
+  'export-dl':exportDownload,
+  'import-start':startImport
+};
+document.addEventListener('click',function(ev){
+  var m=ev.target.closest('[data-ma]');
+  if(m){ var a=modalActs[+m.dataset.ma]; closeModal(); if(a&&a.fn) a.fn(); return; }
+  var el=ev.target.closest('[data-a]'); if(!el) return;
+  var h=H[el.dataset.a]; if(h) h(el,ev);
+});
+document.addEventListener('input',function(ev){
+  var el=ev.target, f=el.dataset&&el.dataset.field; if(!f) return;
+  if(f==='mq'){ manage.q=el.value; renderManageList(); return; }
+  if(!form) return;
+  form.dirty=true; el.classList.remove('bad');
+  if(f==='company'){ form.company=el.value; updateSugg(); }
+  else if(f==='price') form.price=el.value;
+  else if(f==='notes') form.notes=el.value;
+  else if(f.indexOf('r:')===0){ var p=f.split(':'); form.ranges[+p[1]][p[2]]=el.value; }
+  refreshErrors();
+});
+document.addEventListener('focusout',function(ev){
+  var el=ev.target, f=el.dataset&&el.dataset.field; if(!f||!form) return;
+  if(f.indexOf('r:')===0){
+    var v=parseNum(el.value);
+    if(v!==null&&isStep(v)){ var p=f.split(':'); el.value=fmtNum(v); form.ranges[+p[1]][p[2]]=el.value; }
+  }
+});
+document.addEventListener('keydown',function(ev){
+  if(ev.key==='Enter'&&ev.target&&ev.target.id==='pw') doLogin();
+});
+$('#file-input').addEventListener('change',function(ev){
+  var file=ev.target.files&&ev.target.files[0]; if(!file) return;
+  var rd=new FileReader(); rd.onload=function(){ handleImport(String(rd.result)); }; rd.onerror=function(){ toast('Could not open that file'); };
+  rd.readAsText(file);
+});
+
+/* offline support (when served from a web address) */
+if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+  window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
+}
+
+/* test hook (harmless in production) */
+window.__elshahed={db:function(){ return db; }};
+
+render();
+})();
+</script>
+</body>
+</html>

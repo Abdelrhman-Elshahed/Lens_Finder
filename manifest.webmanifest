@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "ELSHAHED Optics Lens Finder",
+  "short_name": "ELSHAHED",
+  "description": "Find the right prescription lens, company and price.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f7f9",
+  "theme_color": "#0b6e8a",
+  "icons": [
+    {
+      "src": "elshahed_icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
