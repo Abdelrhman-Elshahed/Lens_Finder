@@ -1,4 +1,4 @@
-<!doctype html>
+var CLOUD_URL=''<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -191,13 +191,15 @@ input:focus,textarea:focus{ outline:none; border-color:var(--accent); box-shadow
 
 /* ================= constants ================= */
 var KEY='elshahed_optics_data_v1', SKEY='elshahed_optics_session_v1', RKEY='elshahed_optics_lastrole_v1';
-var INDEXES=['1.56','1.61','1.67','1.74','Unbreakable','Night Drive'];
+var INDEXES=['1.56','1.61','1.67','1.74','1.80 Flint','Unbreakable','Night Drive'];
 var MATS=['1.53 Trivex','1.59 Polycarbonate','1.61'];
 var NI=['1.56','1.61','1.67','1.74'];
 var COATINGS=['AR','Blue Cut'];
 var COLORS=['Brown','Gray'];
 var CYLS=['Normal','High'];
 var DEFAULT_PW={admin:'elshahedOp@24', seller:'seller1234'};
+/* Paste your Google Apps Script web app link between the quotes (see the setup steps). Leave empty to use files only. */
+var CLOUD_URL='https://script.google.com/macros/s/AKfycbx_Amrn-pnmIfqapnftxNg4LFyJFQZ72xgFeijTjKfW96z-A0ntfg55rWItbV_iXoxY/exec';
 var RANGE_KEYS=['sf','st','cf','ct'];
 
 var LOGO='<img class="logo" src="elshahed_logo2.png" alt="">';
@@ -312,6 +314,7 @@ function loadDb(){
   if(!d.auth.seller) d.auth.seller=hashPw(DEFAULT_PW.seller);
   d.updatedAt=Number(d.updatedAt)||0;
   d.rx=typeof d.rx==='string'?d.rx:'';
+  d.cloudKey=typeof d.cloudKey==='string'?d.cloudKey:'';
   return d;
 }
 function saveDb(){ sset(KEY,JSON.stringify(db)); }
@@ -497,7 +500,7 @@ function viewForm(){
 }
 
 function viewSettings(){
-  var n=db.lenses.length, canShare=!!(navigator.share&&navigator.canShare);
+  var n=db.lenses.length;
   return '<h1 class="pg">Settings</h1>'+
     '<div class="card"><h2>Seller password</h2><p class="muted">Employees log in with this. Change it when someone leaves. Other phones get the new password when you import a fresh data file there.</p>'+
       '<input type="password" id="pw-seller" placeholder="New seller password" autocomplete="new-password"><button class="primary" data-a="save-pw" data-v="seller">Save seller password</button></div>'+
@@ -505,9 +508,10 @@ function viewSettings(){
       '<input type="password" id="pw-admin" placeholder="New admin password" autocomplete="new-password"><button class="primary" data-a="save-pw" data-v="admin">Save admin password</button></div>'+
     '<label class="chk"><input type="checkbox" data-a="show-pw"> Show passwords</label>'+
     '<div class="card"><h2>RX link</h2><p class="muted">Google Drive link for the RX manufacturers. Share the folder as “Anyone with the link can view”. It travels inside the data file.</p><input type="text" id="rx-link" placeholder="https://drive.google.com/..." value="'+esc(db.rx)+'"><button class="primary" data-a="save-rx">Save RX link</button></div>'+
+    (CLOUD_URL?'<div class="card"><h2>Drive upload key</h2><p class="muted">The secret key you set in the Google script. It stays on this phone only and is not put in the data file.</p><input type="password" id="drive-key" placeholder="Secret key" value="'+esc(db.cloudKey)+'"><button class="primary" data-a="save-key">Save key</button></div>':'')+
     '<div class="card"><h2>Lens data</h2><p class="muted">'+n+' lens'+(n===1?'':'es')+' · last changed '+esc(fmtDate(db.updatedAt))+'</p>'+
-      '<p class="muted small" style="margin-top:8px">The data lives on this phone only. To update other phones: export here, send the file (WhatsApp works), then on each phone tap “Update lens data from a file” on the login screen, or Import below.</p>'+
-      '<div style="height:12px"></div><div class="row2">'+(canShare?'<button class="secondary" data-a="export-share">Share file</button>':'')+'<button class="secondary" data-a="export-dl"'+(canShare?'':' style="grid-column:1/-1"')+'>Download file</button></div>'+
+      '<p class="muted small" style="margin-top:8px">The data lives on this phone only. To update other phones: tap Export file, then on each phone tap “Update lens data from a file” on the login screen, or Import file below.</p>'+
+      '<div style="height:12px"></div><button class="secondary" data-a="export-dl">Export file</button>'+
       '<button class="secondary" data-a="import-start">Import file</button></div>';
 }
 
@@ -721,18 +725,40 @@ function exportDownload(){
   a.href=url; a.download=exportName(); document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){ URL.revokeObjectURL(url); },4000); toast('File saved to Downloads');
 }
-function exportShare(){
+function exportStart(){
   if(session!=='admin') return;
-  try{
-    var file=new File([exportText()],exportName(),{type:'text/plain'});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){
-      navigator.share({files:[file],title:'ELSHAHED lens data'}).catch(function(e){ if(e&&e.name!=='AbortError') exportDownload(); });
-      return;
-    }
-  }catch(e){}
-  exportDownload();
+  if(!CLOUD_URL){ exportDownload(); return; }
+  openModal('Export file','<p>Upload the lens file to Google Drive so every phone can import it. You can also save a copy on this phone.</p>',[
+    {label:'Upload to Google Drive',cls:'primary',fn:cloudExport},
+    {label:'Save to this phone',fn:exportDownload},
+    {label:'Cancel'}
+  ]);
 }
-function startImport(){ var fi=$('#file-input'); fi.value=''; fi.click(); }
+function cloudExport(){
+  if(session!=='admin') return;
+  if(!db.cloudKey){ toast('Enter the Drive upload key in Settings first'); return; }
+  toast('Uploading to Google Drive...');
+  fetch(CLOUD_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:db.cloudKey,name:exportName(),data:exportText()})})
+    .then(function(r){ return r.json(); })
+    .then(function(j){ toast(j&&j.ok?'Uploaded to Google Drive':((j&&j.error)||'Upload failed')); })
+    .catch(function(){ toast('Could not reach Google Drive. Check the internet.'); });
+}
+function cloudImport(){
+  toast('Getting the newest file...');
+  fetch(CLOUD_URL,{cache:'no-store'})
+    .then(function(r){ return r.text(); })
+    .then(function(t){ handleImport(t); })
+    .catch(function(){ toast('Could not reach Google Drive. Check the internet.'); });
+}
+function pickFile(){ var fi=$('#file-input'); fi.value=''; fi.click(); }
+function startImport(){
+  if(!CLOUD_URL){ pickFile(); return; }
+  openModal('Update lens data','<p>Get the newest file from Google Drive, or choose a file saved on this phone.</p>',[
+    {label:'Newest from Google Drive',cls:'primary',fn:cloudImport},
+    {label:'Choose a file',fn:pickFile},
+    {label:'Cancel'}
+  ]);
+}
 function handleImport(text){
   var data=null; try{ data=JSON.parse(text); }catch(e){}
   var arr=Array.isArray(data)?data:(data&&data.lenses);
@@ -810,8 +836,8 @@ var H={
     var b=document.querySelector('.banner'); if(b&&!usingDefault('admin')&&!usingDefault('seller')) b.remove();
   },
   'show-pw':function(el){ ['#pw-seller','#pw-admin'].forEach(function(s){ var i=$(s); if(i) i.type=el.checked?'text':'password'; }); },
-  'export-share':exportShare,
-  'export-dl':exportDownload,
+  'export-dl':exportStart,
+  'save-key':function(){ var v=($('#drive-key').value||'').trim(); db.cloudKey=v; saveDb(); toast('Key saved'); },
   'import-start':startImport
 };
 document.addEventListener('click',function(ev){
