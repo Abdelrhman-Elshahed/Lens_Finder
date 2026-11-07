@@ -1,4 +1,4 @@
-var CLOUD_URL=''<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -734,21 +734,31 @@ function exportStart(){
     {label:'Cancel'}
   ]);
 }
+function cloudFail(e){
+  openModal('Google Drive did not answer','<p>The phone has internet, so the problem is on the Google side. Most likely the Google script is not shared with <b>Anyone</b>: in the script page choose Deploy, Manage deployments, edit, set Who has access to Anyone, then deploy a new version.</p><p class="small">Details: '+esc(e&&e.message?e.message:'blocked')+'</p>',[{label:'OK',cls:'primary'}]);
+}
 function cloudExport(){
   if(session!=='admin') return;
   if(!db.cloudKey){ toast('Enter the Drive upload key in Settings first'); return; }
   toast('Uploading to Google Drive...');
   fetch(CLOUD_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:db.cloudKey,name:exportName(),data:exportText()})})
-    .then(function(r){ return r.json(); })
-    .then(function(j){ toast(j&&j.ok?'Uploaded to Google Drive':((j&&j.error)||'Upload failed')); })
-    .catch(function(){ toast('Could not reach Google Drive. Check the internet.'); });
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var j=null; try{ j=JSON.parse(t); }catch(x){}
+      if(!j) throw new Error('The script sent a web page instead of an answer');
+      toast(j.ok?'Uploaded to Google Drive':(j.error||'Upload failed'));
+    })
+    .catch(cloudFail);
 }
 function cloudImport(){
   toast('Getting the newest file...');
-  fetch(CLOUD_URL,{cache:'no-store'})
+  fetch(CLOUD_URL+'?t='+Date.now())
     .then(function(r){ return r.text(); })
-    .then(function(t){ handleImport(t); })
-    .catch(function(){ toast('Could not reach Google Drive. Check the internet.'); });
+    .then(function(t){
+      if(t.charAt(0)==='<') throw new Error('The script sent a web page instead of the file');
+      handleImport(t);
+    })
+    .catch(cloudFail);
 }
 function pickFile(){ var fi=$('#file-input'); fi.value=''; fi.click(); }
 function startImport(){
