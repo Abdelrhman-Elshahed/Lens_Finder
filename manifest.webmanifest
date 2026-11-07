@@ -1,7 +1,7 @@
 {
   "id": "./",
   "name": "ELSHAHED Optics Lens Finder",
-  "short_name": "ELSHAHED",
+  "short_name": "Lens Finder",
   "description": "Find the right prescription lens, company and price.",
   "start_url": "./",
   "scope": "./",
