@@ -177,6 +177,15 @@ input:focus,textarea:focus{ outline:none; border-color:var(--accent); box-shadow
 }
 #toast.show{ opacity:1; transform:translate(-50%,0); }
 @media (min-width:600px){ .overlay{ align-items:center; } }
+
+.rxg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.rxc label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.sgn{margin-bottom:6px}.sgn .choice{min-height:44px;font-size:22px;padding:4px}
+.tbox{display:flex;align-items:center;justify-content:center;min-height:52px;background:var(--soft);border-radius:12px;font-size:20px;font-weight:700;color:var(--accent-d)}
+.rxc input.bad{border-color:var(--danger)}
+.addrow{display:flex;align-items:center;gap:10px;margin-top:14px}
+.addrow input[type=text]{max-width:140px}
+.fit{margin-top:8px;font-size:14px;color:var(--accent-d);font-weight:600}
 </style>
 </head>
 <body>
@@ -357,6 +366,14 @@ function sortLenses(a,b){
 var db=loadDb();
 var session=sget(SKEY); if(session!=='admin'&&session!=='seller') session=null;
 var screen=session?'find':'login';
+/* Companies that always show, whatever the prescription (sphere and cylinder ranges are not compared). Write the names in lowercase. */
+var NO_RX_CHECK=['صيني'];
+function noRxCheck(l){
+  var k=normName(l.company).replace(/\u0649/g,'\u064A').replace(/\u0629/g,'\u0647');
+  return NO_RX_CHECK.indexOf(k)>=0;
+}
+function freshRx(){ function eye(){ return {s:{sign:null,mag:''},c:{sign:null,mag:''}}; } return {on:false,eye:'R',R:eye(),L:eye(),addOn:false,a:{mag:''}}; }
+var rxp=freshRx();
 var sel={index:null,coating:null,photo:false,color:null,cyl:null};
 var manage={q:'',open:new Set()};
 var form=null;
@@ -407,7 +424,52 @@ function viewLogin(){
   '</div>';
 }
 
-function viewFind(){
+/* ---- prescription (sphere / cylinder) ---- */
+function rxNum(o,plus){
+  if(o.mag==='') return {st:'empty'};
+  var n=parseNum(o.mag);
+  if(n===null||n<0||n>30||!isStep(n)) return {st:'bad'};
+  if(n===0) return {st:'ok',v:0};
+  if(!plus&&!o.sign) return {st:'nosign'};
+  return {st:'ok',v:(!plus&&o.sign==='-')?-n:n};
+}
+function rxAdd(){ return rxp.addOn?rxNum(rxp.a,true):{st:'ok'}; }
+function rxEye(side){
+  var e=rxp[side], sp=rxNum(e.s), cp=rxNum(e.c);
+  return {ok:sp.st==='ok'&&cp.st==='ok', s:sp.v, c:cp.v, tot:sp.st==='ok'?sp.v+(rxp.addOn&&rxAdd().st==='ok'?rxAdd().v:0):undefined, sp:sp, cp:cp};
+}
+function rxMiss(){
+  if(!rxp.on) return [];
+  var m=[]; if(!rxEye('R').ok) m.push('Right eye prescription'); if(!rxEye('L').ok) m.push('Left eye prescription');
+  if(rxAdd().st!=='ok') m.push('Add value');
+  return m;
+}
+function inRanges(l,S,C){
+  return l.ranges.some(function(r){
+    return S>=Math.min(r.sf,r.st)-1e-9&&S<=Math.max(r.sf,r.st)+1e-9&&C>=Math.min(r.cf,r.ct)-1e-9&&C<=Math.max(r.cf,r.ct)+1e-9;
+  });
+}
+function eyeFits(l,e){ return inRanges(l,e.tot,e.c)||inRanges(l,e.tot+e.c,-e.c); }
+function rxFits(l){
+  if(noRxCheck(l)||!rxp.on||rxMiss().length) return true;
+  return eyeFits(l,rxEye('R'))&&eyeFits(l,rxEye('L'));
+}
+function fitHtml(l){
+  if(noRxCheck(l)||!rxp.on||rxMiss().length) return '';
+  return '<p class="fit">'+['R','L'].map(function(sd){
+    var e=rxEye(sd);
+    return (sd==='R'?'Right: ':'Left: ')+(inRanges(l,e.tot,e.c)?'as written':'transposed '+fmtNum(e.tot+e.c)+' / '+fmtNum(-e.c));
+  }).join(' · ')+'</p>';
+}
+function rxChips(){
+  if(!rxp.on||rxMiss().length) return [];
+  var c=['R','L'].map(function(sd){
+    var e=rxEye(sd);
+    return (sd==='R'?'Right ':'Left ')+fmtNum(e.tot)+' / '+fmtNum(e.c);
+  });
+  return c;
+}
+function missList(){
   var nd=sel.index==='Night Drive', miss=[];
   if(!sel.index) miss.push('Index');
   if(!nd){
@@ -415,26 +477,82 @@ function viewFind(){
     if(sel.photo&&!sel.color) miss.push('Photo color');
     if(!sel.cyl) miss.push('Cylinder');
   }
-  return '<div class="lbl">Index</div>'+choices('f-index',OPT.index.concat([{v:'RX',label:'RX',sub:'Opens Drive link'}]),sel.index)+
+  return miss.concat(rxMiss());
+}
+function rxPanel(){
+  var side=rxp.eye, e=rxp[side], t=rxEye(side), ok=t.sp.st==='ok'&&t.cp.st==='ok';
+  function inp(k,label){
+    var o=e[k];
+    return '<div class="rxc"><label>'+label+'</label><div class="choices sgn">'+['+','-'].map(function(g){
+      return '<button type="button" class="choice'+(o.sign===g?' on':'')+'" data-a="rx-sign" data-k="'+k+'" data-v="'+g+'">'+(g==='-'?'\u2212':'+')+'</button>';
+    }).join('')+'</div><input type="text" inputmode="decimal" id="rx-'+k+'" data-field="rx:'+k+'" value="'+esc(o.mag)+'" placeholder="0.00" autocomplete="off"></div>';
+  }
+  return '<div class="lbl">Eye</div>'+choices('rx-eye',[{v:'R',html:'Right'+(rxEye('R').ok?' \u2713':'')},{v:'L',html:'Left'+(rxEye('L').ok?' \u2713':'')}],side)+
+    '<div class="rxg">'+inp('s','Sphere')+inp('c','Cylinder')+
+    '<div class="rxc"><label>Sphere (transposed)</label><div class="tbox" id="rx-ts">'+(ok?fmtNum(t.s+t.c):'\u2013')+'</div></div>'+
+    '<div class="rxc"><label>Cylinder (transposed)</label><div class="tbox" id="rx-tc">'+(ok?fmtNum(-t.c):'\u2013')+'</div></div></div>'+
+    '<p class="errtxt" id="rx-err"></p>'+
+    '<div class="addrow"><label class="chk" style="margin:0"><input type="checkbox" data-a="rx-addon"'+(rxp.addOn?' checked':'')+'> Add</label>'+
+    (rxp.addOn?'<span>+</span><input type="text" inputmode="decimal" id="rx-a" data-field="rx:a" value="'+esc(rxp.a.mag)+'" placeholder="0.00" autocomplete="off">':'')+'</div>';
+}
+function rxRefresh(){
+  if(!rxp.on) return;
+  var side=rxp.eye, t=rxEye(side), ok=t.sp.st==='ok'&&t.cp.st==='ok', msg='';
+  var ts=$('#rx-ts'), tc=$('#rx-tc');
+  if(ts) ts.textContent=ok?fmtNum(t.s+t.c):'\u2013';
+  if(tc) tc.textContent=ok?fmtNum(-t.c):'\u2013';
+  [['s',t.sp],['c',t.cp],['a',rxAdd()]].forEach(function(p){
+    var el=$('#rx-'+p[0]); if(el) el.classList.toggle('bad',p[1].st==='bad');
+    if(p[1].st==='bad') msg='Use numbers in steps of 0.25, for example 1.25';
+    else if(p[1].st==='nosign'&&!msg) msg='Choose + or \u2212 for the value';
+  });
+  var er=$('#rx-err'); if(er) er.textContent=msg;
+  ['R','L'].forEach(function(sd){
+    var b=document.querySelector('[data-a="rx-eye"][data-v="'+sd+'"]');
+    if(b) b.innerHTML=(sd==='R'?'Right':'Left')+(rxEye(sd).ok?' \u2713':'');
+  });
+  var miss=missList(), sb=document.querySelector('[data-a="search"]'), h=$('#rx-hint');
+  if(sb) sb.disabled=!!miss.length;
+  if(h) h.textContent=miss.length?'Still needed: '+miss.join(', '):'';
+}
+function rxSignUI(){
+  ['s','c'].forEach(function(k){
+    document.querySelectorAll('[data-a="rx-sign"][data-k="'+k+'"]').forEach(function(b){ b.classList.toggle('on',rxp[rxp.eye][k].sign===b.dataset.v); });
+  });
+}
+function rxType(f,v){
+  var k=f.split(':')[1], e=rxp[rxp.eye], o=k==='a'?rxp.a:e[k], t=String(v).replace(/[\u2212\u2013]/g,'-').trim();
+  if(k!=='a'&&(t.charAt(0)==='-'||t.charAt(0)==='+')){
+    o.sign=t.charAt(0); t=t.slice(1);
+    var el=$('#rx-'+k); if(el) el.value=t; rxSignUI();
+  }
+  o.mag=t; rxRefresh();
+}
+
+function viewFind(){
+  var nd=sel.index==='Night Drive', miss=missList();
+  return '<div class="lbl">Add prescription</div>'+choices('rx-on',[{v:'no',label:'No'},{v:'yes',label:'Yes'}],rxp.on?'yes':'no')+
+    (rxp.on?rxPanel():'')+
+    '<div class="lbl">Index</div>'+choices('f-index',OPT.index.concat([{v:'RX',label:'RX',sub:'Opens Drive link'}]),sel.index)+
     (nd?'':'<div class="lbl">Coating</div>'+choices('f-coating',OPT.coating,sel.coating)+
     '<div class="lbl">Photochromic</div>'+choices('f-photo',OPT.photo,sel.photo?'yes':'no')+
     (sel.photo?'<div class="lbl">Photo color</div>'+choices('f-color',OPT.color,sel.color):'')+
     '<div class="lbl">Cylinder</div>'+choices('f-cyl',OPT.cyl,sel.cyl))+
     (session==='seller'?'<div style="text-align:center;margin-top:26px"><button class="link" data-a="import-start">Update lens data from a file</button></div>':'')+
     (nd?'':'<div class="stickybar"><button class="primary" data-a="search"'+(miss.length?' disabled':'')+'>Search</button>'+
-    (miss.length?'<p class="hint">Still needed: '+miss.join(', ')+'</p>':'')+'</div>');
+    '<p class="hint" id="rx-hint">'+(miss.length?'Still needed: '+miss.join(', '):'')+'</p></div>');
 }
 
 function matches(){
   return db.lenses.filter(function(l){
     return l.index===sel.index&&(sel.index==='Night Drive'||(l.coating===sel.coating&&l.photo===sel.photo&&(!sel.photo||l.color===sel.color)&&l.cyl===sel.cyl));
-  }).sort(function(a,b){ return a.price-b.price || a.company.localeCompare(b.company); });
+  }).filter(rxFits).sort(function(a,b){ return a.price-b.price || a.company.localeCompare(b.company); });
 }
 function lensTag(l){ return l.index==='Unbreakable'?l.mat:(l.index==='Night Drive'?'Night Drive '+l.nidx:''); }
 function rowTitle(l){ if(l.index==='Night Drive') return 'Night Drive '+l.nidx; return (l.index==='Unbreakable'?'Unbreakable '+l.mat:l.index)+' · '+l.coating+(l.photo?' · Photo '+l.color:''); }
 function rowSub(l){ var nd=l.index==='Night Drive'; return (nd?'':l.cyl+' cylinder')+(l.ranges.length>1?(nd?'':' · ')+l.ranges.length+' ranges':''); }
 function lensCard(l){
-  return '<article class="card lens"><div class="top"><h3>'+esc(l.company)+'</h3><div class="price">'+fmtPrice(l.price)+'<span>EGP</span></div></div>'+(lensTag(l)?'<p class="muted">'+esc(lensTag(l))+'</p>':'')+
+  return '<article class="card lens"><div class="top"><h3>'+esc(l.company)+'</h3><div class="price">'+fmtPrice(l.price)+'<span>EGP</span></div></div>'+(lensTag(l)?'<p class="muted">'+esc(lensTag(l))+'</p>':'')+fitHtml(l)+
     '<ul class="ranges">'+l.ranges.map(function(r){
       return '<li><span><em>Sphere</em> '+fmtNum(r.sf)+' to '+fmtNum(r.st)+'</span><span><em>Cylinder</em> '+fmtNum(r.cf)+' to '+fmtNum(r.ct)+'</span></li>';
     }).join('')+'</ul>'+(l.notes?'<p class="notes">'+esc(l.notes)+'</p>':'')+'</article>';
@@ -442,6 +560,7 @@ function lensCard(l){
 function viewResults(){
   var list=matches();
   var chips=sel.index==='Night Drive'?['Night Drive']:[idxLabel(sel.index),sel.coating,sel.photo?'Photochromic '+sel.color:'No photochromic',sel.cyl+' cylinder'];
+  chips=chips.concat(rxChips());
   return '<button class="summary" data-a="f-back" aria-label="Change options"><span class="chips">'+chips.map(function(c){ return '<span class="chip">'+esc(c)+'</span>'; }).join('')+'</span><span class="chg">Change</span></button>'+
     (list.length
       ? '<p class="count-line">'+list.length+' result'+(list.length===1?'':'s')+' · lowest price first</p>'+list.map(lensCard).join('')
@@ -595,7 +714,7 @@ function doLogout(){
   if(subDepth){ subDepth=0; ignorePop++; try{ history.back(); }catch(e){ ignorePop--; } }
   screen='login'; loginErr=''; render();
 }
-function showFindReset(){ sel={index:null,coating:null,photo:false,color:null,cyl:null}; manage.q=''; }
+function showFindReset(){ sel={index:null,coating:null,photo:false,color:null,cyl:null}; rxp=freshRx(); manage.q=''; }
 
 /* ================= form logic ================= */
 function blankRange(){ return {sf:'',st:'',cf:'',ct:''}; }
@@ -797,9 +916,14 @@ var H={
   'login':doLogin,
   'logout':doLogout,
   'nav':function(el){ go(el.dataset.v); },
+  'rx-on':function(el){ if(el.dataset.v==='yes') rxp.on=true; else rxp=freshRx(); render(true); },
+  'rx-eye':function(el){ rxp.eye=el.dataset.v; render(true); },
+  'rx-sign':function(el){ rxp[rxp.eye][el.dataset.k].sign=el.dataset.v; rxSignUI(); rxRefresh(); },
+  'rx-addon':function(el){ rxp.addOn=el.checked; if(!rxp.addOn) rxp.a.mag=''; render(true); },
   'f-index':function(el){
     var v=el.dataset.v;
     if(v==='RX'){ if(db.rx) window.open(db.rx,'_blank'); else toast('RX link is not set yet. The admin can add it in Settings.'); return; }
+    if(v==='Night Drive'&&rxMiss().length){ toast('Fill in both eyes first, or set Add prescription to No'); return; }
     sel.index=v; if(v==='Night Drive') enterSub('results'); else render(true);
   },
   'save-rx':function(){
@@ -859,6 +983,7 @@ document.addEventListener('click',function(ev){
 document.addEventListener('input',function(ev){
   var el=ev.target, f=el.dataset&&el.dataset.field; if(!f) return;
   if(f==='mq'){ manage.q=el.value; renderManageList(); return; }
+  if(f.indexOf('rx:')===0){ rxType(f,el.value); return; }
   if(!form) return;
   form.dirty=true; el.classList.remove('bad');
   if(f==='company'){ form.company=el.value; updateSugg(); }
