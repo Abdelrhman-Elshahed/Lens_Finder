@@ -218,11 +218,10 @@ var NI=['1.56','1.61','1.67','1.74'];
 var COATINGS=['AR','Blue Cut'];
 var COLORS=['Brown','Gray'];
 var CYLS=['Normal','High','High 6'];
-var DEFAULT_PW={admin:'elshahedOp@24', seller:'seller1234'};
 /* Paste your Google Apps Script web app link between the quotes (see the setup steps). Leave empty to use files only. */
 var CLOUD_URL='https://script.google.com/macros/s/AKfycbx_Amrn-pnmIfqapnftxNg4LFyJFQZ72xgFeijTjKfW96z-A0ntfg55rWItbV_iXoxY/exec';
 /* Google Apps Script link for the contact lens inventory folder. */
-var INV_URL='https://script.google.com/macros/s/AKfycbyJizH8zQlzdyrETpc0m8IXqcRc_C2C8RTpEAHbluX_DlAVAauD2MD-6BLsQN_AQII/exec';
+var INV_URL=CLOUD_URL;
 var RANGE_KEYS=['sf','st','cf','ct'];
 
 var LOGO='<img class="logo" src="elshahed_logo2.png" alt="">';
@@ -241,14 +240,6 @@ function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(
 function cleanName(s){ return String(s==null?'':s).replace(/\s+/g,' ').trim(); }
 function normName(s){ return cleanName(s).toLowerCase(); }
 function idxLabel(i){ return i; }
-
-function hashPw(pw){ /* simple non-cryptographic hash (cyrb53): keeps casual users out */
-  var str='elshahed|'+pw, h1=0xdeadbeef, h2=0x41c6ce57;
-  for(var i=0;i<str.length;i++){ var ch=str.charCodeAt(i); h1=Math.imul(h1^ch,2654435761); h2=Math.imul(h2^ch,1597334677); }
-  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
-  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
-  return 'h'+(4294967296*(2097151&h2)+(h1>>>0)).toString(36);
-}
 
 function normDigits(s){
   return String(s)
@@ -332,18 +323,16 @@ function loadDb(){
   try{ var raw=sget(KEY); if(raw) d=JSON.parse(raw); }catch(e){ d=null; }
   if(!d||typeof d!=='object') d={};
   d.lenses=Array.isArray(d.lenses)?d.lenses.map(sanitizeLens).filter(Boolean):[];
-  d.auth=(d.auth&&typeof d.auth==='object')?d.auth:{};
-  if(!d.auth.admin) d.auth.admin=hashPw(DEFAULT_PW.admin);
-  if(!d.auth.seller) d.auth.seller=hashPw(DEFAULT_PW.seller);
+  delete d.auth;
   d.updatedAt=Number(d.updatedAt)||0;
   d.rx=typeof d.rx==='string'?d.rx:'';
-  d.cloudKey=typeof d.cloudKey==='string'?d.cloudKey:'';
+  delete d.cloudKey;
+  d.token=typeof d.token==='string'?d.token:'';
   d.cl=sanitizeCl(d.cl);
   d.clp=sanitizeClp(d.clp);
   return d;
 }
 function saveDb(){ sset(KEY,JSON.stringify(db)); }
-function usingDefault(role){ return db.auth[role]===hashPw(DEFAULT_PW[role]); }
 
 /* ================= company folders ================= */
 function companyMap(pool){
@@ -493,40 +482,25 @@ function clAddApply(){
 }
 function invExport(){
   if(session!=='admin') return;
-  var key=db.cloudKey;
-  if(!key){
-    clShow(clHead('Upload key')+'<div class="mbody"><p>Enter the secret key once. It is saved on this device and also used for the lens file.</p></div><input type="password" id="inv-key-in" placeholder="Secret key" autocomplete="off"><p class="errtxt" id="cl-err"></p><div class="mact"><button class="primary" data-a="inv-key-ok">Save and export</button></div>');
-    return;
-  }
   toast('Uploading inventory...');
   var d=new Date(), p=function(n){ return (n<10?'0':'')+n; };
   var name='elshahed-inventory-'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+'.json';
   var data=JSON.stringify({app:'elshahed-inventory',version:1,exportedAt:d.toISOString(),cl:db.cl,clp:db.clp});
-  fetch(INV_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:key,name:name,data:data})})
-    .then(function(r){ return r.text(); })
-    .then(function(t){
-      var j=null; try{ j=JSON.parse(t); }catch(x){}
-      if(!j) throw new Error('The script sent a web page instead of an answer');
-      toast(j.ok?'Inventory uploaded to Google Drive':(j.error||'Upload failed'));
-    })
-    .catch(cloudFail);
+  call({action:'putInv',name:name,data:data}).then(function(j){ toast(j.ok?'Inventory uploaded to Google Drive':(j.error||'Upload failed')); }).catch(cloudFail);
 }
 function invUpdate(){
   if(session!=='admin') return;
   toast('Getting the newest inventory...');
-  fetch(INV_URL+'?t='+Date.now())
-    .then(function(r){ return r.text(); })
-    .then(function(t){
-      if(t.charAt(0)==='<') throw new Error('The script sent a web page instead of the file');
-      var d=null; try{ d=JSON.parse(t); }catch(x){}
-      if(!d||!d.cl){ openModal('No inventory file','<p>No inventory file was found in the Drive folder yet. Tap Export inventory in Settings on the other device first.</p>',[{label:'OK',cls:'primary'}]); return; }
-      var when=d.exportedAt?fmtDate(Date.parse(d.exportedAt)):'';
-      openModal('Replace the inventory?','<p>The newest file'+(when?' (exported '+esc(when)+')':'')+' will replace the stock and the added powers on this device.</p>',[
-        {label:'Replace',cls:'primary',fn:function(){ db.cl=sanitizeCl(d.cl); db.clp=sanitizeClp(d.clp); saveDb(); render(true); toast('Inventory updated'); }},
-        {label:'Cancel'}
-      ]);
-    })
-    .catch(cloudFail);
+  call({action:'getInv'}).then(function(j){
+    if(!j.ok){ toast(j.error||'Could not get the file'); return; }
+    var d=null; try{ d=JSON.parse(j.data); }catch(x){}
+    if(!d||!d.cl){ openModal('No inventory file','<p>No inventory file was found in the Drive folder yet. Tap Export inventory in Settings on the other device first.</p>',[{label:'OK',cls:'primary'}]); return; }
+    var when=d.exportedAt?fmtDate(Date.parse(d.exportedAt)):'';
+    openModal('Replace the inventory?','<p>The newest file'+(when?' (exported '+esc(when)+')':'')+' will replace the stock and the added powers on this device.</p>',[
+      {label:'Replace',cls:'primary',fn:function(){ db.cl=sanitizeCl(d.cl); db.clp=sanitizeClp(d.clp); saveDb(); render(true); toast('Inventory updated'); }},
+      {label:'Cancel'}
+    ]);
+  }).catch(cloudFail);
 }
 function viewCL(){
   if(cls.sub==='inventory') return viewInv();
@@ -768,8 +742,7 @@ function manageListHtml(){
   }).join('');
 }
 function viewManage(){
-  var warn=(usingDefault('admin')||usingDefault('seller'))
-    ? '<button class="banner" data-a="nav" data-v="settings">A default password is still in use. Tap to change it in Settings.</button>' : '';
+  var warn='';
   return '<h1 class="pg">Manage Lenses</h1><input type="search" class="search" id="mq" data-field="mq" placeholder="Search company" value="'+esc(manage.q)+'" autocomplete="off" aria-label="Search company">'+warn+
     '<div id="mlist" style="margin-top:14px">'+manageListHtml()+'</div>'+
     '<button class="fab" data-a="add" aria-label="Add lens">+</button>';
@@ -807,18 +780,17 @@ function viewForm(){
 function viewSettings(){
   var n=db.lenses.length;
   return '<h1 class="pg">Settings</h1>'+
-    '<div class="card"><h2>Seller password</h2><p class="muted">Employees log in with this. Change it when someone leaves. Other phones get the new password when you import a fresh data file there.</p>'+
-      '<input type="password" id="pw-seller" placeholder="New seller password" autocomplete="new-password"><button class="primary" data-a="save-pw" data-v="seller">Save seller password</button></div>'+
-    '<div class="card"><h2>Admin password</h2><p class="muted">For you and your father. This changes only on this phone.</p>'+
+    '<div class="card"><h2>Seller password</h2><p class="muted">Employees log in with this. It is kept safely in Google, so a change applies on every phone at once.</p>'+
+      '<input type="password" id="pw-seller" placeholder="New seller password" autocomplete="new-password"><button class="primary" data-a="save-pw" data-v="seller">Save seller password</button><button class="secondary" data-a="revoke-sellers">Log out all sellers</button></div>'+
+    '<div class="card"><h2>Admin password</h2><p class="muted">For you and your father. It is kept safely in Google and applies on every phone.</p>'+
       '<input type="password" id="pw-admin" placeholder="New admin password" autocomplete="new-password"><button class="primary" data-a="save-pw" data-v="admin">Save admin password</button></div>'+
     '<label class="chk"><input type="checkbox" data-a="show-pw"> Show passwords</label>'+
     '<div class="card"><h2>RX link</h2><p class="muted">Google Drive link for the RX manufacturers. Share the folder as “Anyone with the link can view”. It travels inside the data file.</p><input type="text" id="rx-link" placeholder="https://drive.google.com/..." value="'+esc(db.rx)+'"><button class="primary" data-a="save-rx">Save RX link</button></div>'+
-    (CLOUD_URL?'<div class="card"><h2>Drive upload key</h2><p class="muted">The secret key you set in the Google script. It stays on this phone only and is not put in the data file.</p><input type="password" id="drive-key" placeholder="Secret key" value="'+esc(db.cloudKey)+'"><button class="primary" data-a="save-key">Save key</button></div>':'')+
     '<div class="card"><h2>Lens data</h2><p class="muted">'+n+' lens'+(n===1?'':'es')+' · last changed '+esc(fmtDate(db.updatedAt))+'</p>'+
       '<p class="muted small" style="margin-top:8px">The data lives on this phone only. To update other phones: tap Export file, then on each phone tap “Update lens data from a file” on the login screen, or Import file below.</p>'+
       '<div style="height:12px"></div><button class="secondary" data-a="export-dl">Export file</button>'+
       '<button class="secondary" data-a="import-start">Import file</button></div>'+
-    (INV_URL?'<div class="card"><h2>Inventory (contact lenses)</h2><p class="muted">Upload the current stock and added powers to the inventory folder in Google Drive, so the other admin can update from it. It uses the same upload key as the lens file.</p><button class="primary" data-a="inv-export">Export inventory</button></div>':'');
+    (INV_URL?'<div class="card"><h2>Inventory (contact lenses)</h2><p class="muted">Upload the current stock and added powers to the inventory folder in Google Drive, so the other admin can update from it.</p><button class="primary" data-a="inv-export">Export inventory</button></div>':'');
 }
 
 function render(keep){
@@ -889,16 +861,20 @@ window.addEventListener('popstate',function(){
 
 /* ================= login / logout ================= */
 function doLogin(){
-  var pw=($('#pw')||{}).value||'';
-  if(hashPw(pw)===db.auth[loginRole]){
-    session=loginRole; sset(SKEY,session); sset(RKEY,loginRole); loginErr='';
-    screen='find'; render();
-  } else {
-    loginErr='Wrong password'; var el=$('#loginerr'); if(el) el.textContent=loginErr;
-  }
+  var pw=($('#pw')||{}).value||'', el=$('#loginerr'), btn=document.querySelector('[data-a="login"]');
+  if(!pw){ loginErr='Enter the password'; if(el) el.textContent=loginErr; return; }
+  if(btn) btn.disabled=true;
+  if(el) el.textContent='Checking...';
+  api({action:'login',role:loginRole,pw:pw}).then(function(j){
+    if(j&&j.ok){ db.token=j.token; saveDb(); session=loginRole; sset(SKEY,session); sset(RKEY,loginRole); loginErr=''; screen='find'; render(); }
+    else { loginErr=(j&&j.error)||'Wrong password'; var e1=$('#loginerr'), b1=document.querySelector('[data-a="login"]'); if(e1) e1.textContent=loginErr; if(b1) b1.disabled=false; }
+  }).catch(function(){
+    loginErr='Could not reach Google. Check the internet and try again.';
+    var e2=$('#loginerr'), b2=document.querySelector('[data-a="login"]'); if(e2) e2.textContent=loginErr; if(b2) b2.disabled=false;
+  });
 }
 function doLogout(){
-  session=null; sdel(SKEY); form=null; showFindReset();
+  session=null; sdel(SKEY); db.token=''; saveDb(); form=null; showFindReset();
   if(subDepth){ subDepth=0; ignorePop++; try{ history.back(); }catch(e){ ignorePop--; } }
   screen='login'; loginErr=''; render();
 }
@@ -1023,7 +999,7 @@ function duplicateForm(){
 
 /* ================= export / import ================= */
 function exportText(){
-  return JSON.stringify({app:'elshahed-optics',version:1,exportedAt:new Date().toISOString(),updatedAt:db.updatedAt,sellerPass:db.auth.seller,rx:db.rx,lenses:db.lenses},null,1);
+  return JSON.stringify({app:'elshahed-optics',version:1,exportedAt:new Date().toISOString(),updatedAt:db.updatedAt,rx:db.rx,lenses:db.lenses},null,1);
 }
 function exportName(){ var d=new Date(),p=function(n){ return (n<10?'0':'')+n; }; return 'elshahed-lenses-'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'.json'; }
 function exportDownload(){
@@ -1042,30 +1018,49 @@ function exportStart(){
   ]);
 }
 function cloudFail(e){
-  openModal('Google Drive did not answer','<p>The phone has internet, so the problem is on the Google side. Most likely the Google script is not shared with <b>Anyone</b>: in the script page choose Deploy, Manage deployments, edit, set Who has access to Anyone, then deploy a new version.</p><p class="small">Details: '+esc(e&&e.message?e.message:'blocked')+'</p>',[{label:'OK',cls:'primary'}]);
+  if(e&&e.message==='cancelled') return;
+  openModal('Google Drive did not answer','<p>Check the internet. If it is fine, the Google script may not be shared with <b>Anyone</b>: in the script page choose Deploy, Manage deployments, edit, set Who has access to Anyone, then deploy a new version.</p><p class="small">Details: '+esc(e&&e.message?e.message:'blocked')+'</p>',[{label:'OK',cls:'primary'}]);
+}
+/* ---- the Google script keeps the passwords and the files ---- */
+function api(body){
+  return fetch(CLOUD_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)})
+    .then(function(r){ return r.text(); })
+    .then(function(t){ var j=null; try{ j=JSON.parse(t); }catch(x){} if(!j) throw new Error('The script sent a web page instead of an answer'); return j; });
+}
+var pwCb=null;
+function askPw(ok){
+  pwCb=ok;
+  clShow(clHead('Enter your password')+'<div class="mbody"><p>To connect to Google Drive, enter your '+((session||loginRole)==='admin'?'admin':'seller')+' password. You only need to do this once on this device.</p></div><input type="password" id="pw-in" placeholder="Password" autocomplete="current-password"><p class="errtxt" id="cl-err"></p><div class="mact"><button class="primary" data-a="pw-ok">Continue</button></div>');
+}
+function pwSubmit(){
+  var pw=($('#pw-in')||{}).value||'', e=$('#cl-err');
+  if(!pw){ if(e) e.textContent='Enter the password'; return; }
+  if(e) e.textContent='Checking...';
+  api({action:'login',role:session||loginRole,pw:pw}).then(function(j){
+    if(j&&j.ok){ db.token=j.token; saveDb(); closeModal(); var cb=pwCb; pwCb=null; if(cb) cb(); }
+    else { var e1=$('#cl-err'); if(e1) e1.textContent=(j&&j.error)||'Wrong password'; }
+  }).catch(function(){ var e2=$('#cl-err'); if(e2) e2.textContent='Could not reach Google. Check the internet.'; });
+}
+function call(body,retried){
+  return new Promise(function(resolve,reject){
+    function go(){
+      body.token=db.token;
+      api(body).then(function(j){
+        if(j&&j.auth===false&&!retried){ db.token=''; saveDb(); askPw(function(){ call(body,true).then(resolve,reject); }); }
+        else resolve(j);
+      },reject);
+    }
+    if(db.token) go(); else askPw(go);
+  });
 }
 function cloudExport(){
   if(session!=='admin') return;
-  if(!db.cloudKey){ toast('Enter the Drive upload key in Settings first'); return; }
   toast('Uploading to Google Drive...');
-  fetch(CLOUD_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:db.cloudKey,name:exportName(),data:exportText()})})
-    .then(function(r){ return r.text(); })
-    .then(function(t){
-      var j=null; try{ j=JSON.parse(t); }catch(x){}
-      if(!j) throw new Error('The script sent a web page instead of an answer');
-      toast(j.ok?'Uploaded to Google Drive':(j.error||'Upload failed'));
-    })
-    .catch(cloudFail);
+  call({action:'putLens',name:exportName(),data:exportText()}).then(function(j){ toast(j.ok?'Uploaded to Google Drive':(j.error||'Upload failed')); }).catch(cloudFail);
 }
 function cloudImport(){
   toast('Getting the newest file...');
-  fetch(CLOUD_URL+'?t='+Date.now())
-    .then(function(r){ return r.text(); })
-    .then(function(t){
-      if(t.charAt(0)==='<') throw new Error('The script sent a web page instead of the file');
-      handleImport(t);
-    })
-    .catch(cloudFail);
+  call({action:'getLens'}).then(function(j){ if(!j.ok){ toast(j.error||'Could not get the file'); return; } handleImport(j.data); }).catch(cloudFail);
 }
 function pickFile(){ var fi=$('#file-input'); fi.value=''; fi.click(); }
 function startImport(){
@@ -1086,7 +1081,6 @@ function handleImport(text){
   openModal('Replace lens data?','<p>The file has <b>'+lenses.length+'</b> lens'+(lenses.length===1?'':'es')+(skipped?' ('+skipped+' damaged and skipped)':'')+'.</p><p>This replaces the <b>'+db.lenses.length+'</b> now on this phone.</p>'+(older?'<p class="warn">This file is older than the data on this phone.</p>':''),[
     {label:'Replace',cls:'primary',fn:function(){
       db.lenses=lenses; db.updatedAt=ft||Date.now();
-      if(data&&typeof data.sellerPass==='string'&&/^h[0-9a-z]+$/.test(data.sellerPass)) db.auth.seller=data.sellerPass;
       if(data&&typeof data.rx==='string') db.rx=data.rx;
       saveDb(); manage.open=new Set(); render(true); toast('Imported '+lenses.length+' lenses');
     }},
@@ -1118,7 +1112,6 @@ var H={
   'cl-delp':function(){ if(session!=='admin') return; db.clp=db.clp.filter(function(x){ return x!==clRow; }); saveDb(); closeModal(); render(true); },
   'inv-export':invExport,
   'inv-update':invUpdate,
-  'inv-key-ok':function(){ var v=(($('#inv-key-in')||{}).value||'').trim(); if(!v){ var e=$('#cl-err'); if(e) e.textContent='Enter the key'; return; } db.cloudKey=v; saveDb(); closeModal(); render(true); invExport(); },
   'cl-back':function(){ cls.sub=null; render(); },
   'cl-sub':function(el){ if(session==='admin'){ cls.sub=el.dataset.v; render(true); } },
   'cl-close':function(){ closeModal(); },
@@ -1172,12 +1165,19 @@ var H={
   'save-pw':function(el){
     var role=el.dataset.v, inp=$('#pw-'+role), v=inp?inp.value:'';
     if(v.length<4){ toast('Use at least 4 characters'); return; }
-    db.auth[role]=hashPw(v); saveDb(); inp.value=''; toast((role==='seller'?'Seller':'Admin')+' password changed');
-    var b=document.querySelector('.banner'); if(b&&!usingDefault('admin')&&!usingDefault('seller')) b.remove();
+    call({action:'setPw',role:role,pw:v}).then(function(j){
+      if(j.ok){ inp.value=''; toast((role==='seller'?'Seller':'Admin')+' password changed'); } else toast(j.error||'Could not change the password');
+    }).catch(cloudFail);
   },
+  'revoke-sellers':function(){
+    openModal('Log out all sellers?','<p>Every seller phone will have to enter the seller password again before it can update lens data from Google Drive.</p>',[
+      {label:'Log out all sellers',cls:'danger',fn:function(){ call({action:'revoke',role:'seller'}).then(function(j){ toast(j.ok?'Done':(j.error||'Failed')); }).catch(cloudFail); }},
+      {label:'Cancel'}
+    ]);
+  },
+  'pw-ok':pwSubmit,
   'show-pw':function(el){ ['#pw-seller','#pw-admin'].forEach(function(s){ var i=$(s); if(i) i.type=el.checked?'text':'password'; }); },
   'export-dl':exportStart,
-  'save-key':function(){ var v=($('#drive-key').value||'').trim(); db.cloudKey=v; saveDb(); toast('Key saved'); },
   'import-start':startImport
 };
 document.addEventListener('click',function(ev){
