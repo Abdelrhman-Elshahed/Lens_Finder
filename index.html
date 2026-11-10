@@ -156,7 +156,7 @@ input:focus,textarea:focus{ outline:none; border-color:var(--accent); box-shadow
 
 /* nav */
 .nav{ position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); z-index:5; }
-.nav-in{ max-width:560px; margin:0 auto; display:grid; grid-template-columns:repeat(3,1fr); }
+.nav-in{ max-width:560px; margin:0 auto; display:grid; grid-template-columns:repeat(4,1fr); }
 .nav button{ height:64px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:12px; color:var(--muted); }
 .nav button.on{ color:var(--accent); font-weight:700; }
 .nav svg{ width:24px; height:24px; }
@@ -186,6 +186,18 @@ input:focus,textarea:focus{ outline:none; border-color:var(--accent); box-shadow
 .addrow{display:flex;align-items:center;gap:10px;margin-top:14px}
 .addrow input[type=text]{max-width:140px}
 .fit{margin-top:8px;font-size:14px;color:var(--accent-d);font-weight:600}
+
+select{min-height:44px;border:2px solid var(--line);border-radius:12px;padding:6px 10px;font:inherit;font-size:16px;background:#fff;color:var(--ink)}
+.sheet{max-height:88vh;overflow-y:auto}
+.clhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0}
+.clrow{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:8px;font-size:17px;text-align:left}
+.clrow span.z{color:var(--muted)}
+.clh{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.clh h2{margin:0}
+.clx{font-size:20px;width:44px;height:44px;border-radius:12px;color:var(--muted);flex:none}
+.cll{display:flex;gap:8px;align-items:center;margin:10px 0}
+.cll select{flex:1.2;min-width:0}.cll input{flex:1;min-width:0}
+.clu{color:var(--muted);font-size:15px}.clp{font-size:20px;min-width:70px}
+.choice:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
@@ -209,6 +221,8 @@ var CYLS=['Normal','High','High 6'];
 var DEFAULT_PW={admin:'elshahedOp@24', seller:'seller1234'};
 /* Paste your Google Apps Script web app link between the quotes (see the setup steps). Leave empty to use files only. */
 var CLOUD_URL='https://script.google.com/macros/s/AKfycbx_Amrn-pnmIfqapnftxNg4LFyJFQZ72xgFeijTjKfW96z-A0ntfg55rWItbV_iXoxY/exec';
+/* Google Apps Script link for the contact lens inventory folder. */
+var INV_URL='https://script.google.com/macros/s/AKfycbyJizH8zQlzdyrETpc0m8IXqcRc_C2C8RTpEAHbluX_DlAVAauD2MD-6BLsQN_AQII/exec';
 var RANGE_KEYS=['sf','st','cf','ct'];
 
 var LOGO='<img class="logo" src="elshahed_logo2.png" alt="">';
@@ -324,6 +338,8 @@ function loadDb(){
   d.updatedAt=Number(d.updatedAt)||0;
   d.rx=typeof d.rx==='string'?d.rx:'';
   d.cloudKey=typeof d.cloudKey==='string'?d.cloudKey:'';
+  d.cl=sanitizeCl(d.cl);
+  d.clp=sanitizeClp(d.clp);
   return d;
 }
 function saveDb(){ sset(KEY,JSON.stringify(db)); }
@@ -406,9 +422,179 @@ function header(){
 }
 function nav(){
   if(session!=='admin'||screen==='form') return '';
-  var tab=(screen==='settings')?'settings':(screen==='manage'?'manage':'find');
+  var tab=(screen==='settings')?'settings':(screen==='manage'?'manage':(screen==='cl'?'cl':'find'));
   function b(t,label,icon){ return '<button data-a="nav" data-v="'+t+'" class="'+(tab===t?'on':'')+'">'+icon+label+'</button>'; }
-  return '<nav class="nav"><div class="nav-in">'+b('find','Find Lens',ICON.find)+b('manage','Manage',ICON.manage)+b('settings','Settings',ICON.settings)+'</div></nav>';
+  return '<nav class="nav"><div class="nav-in">'+b('find','Find Lens',ICON.find)+b('manage','Manage',ICON.manage)+b('cl','Contacts',ICON.cl)+b('settings','Settings',ICON.settings)+'</div></nav>';
+}
+
+/* ================= contact lens inventory (admin) ================= */
+ICON.cl='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+var CLB={hightown:'Hightown',diamond:'Diamond'};
+var cls={branch:'hightown',view:'boxes',sub:null}, clLines=[], clMode='', clRow='';
+var CL_POWERS=(function(){ var a=[],i; for(i=3;i<=20;i++) a.push(-i*0.25); for(i=11;i<=16;i++) a.push(-i*0.5); return a; })();
+function pk(p){ return (p>0?'+':'')+p.toFixed(2); }
+function otherB(b){ return b==='hightown'?'diamond':'hightown'; }
+function sanitizeCl(c){
+  var o={hightown:{},diamond:{}};
+  ['hightown','diamond'].forEach(function(b){
+    var src=(c&&c[b])||{};
+    Object.keys(src).forEach(function(k){ var n=parseInt(src[k],10); if(isFinite(n)&&n>0) o[b][k]=n; });
+  });
+  return o;
+}
+function plur(n,one,many){ return n+' '+(n===1?one:many); }
+function fmtCount(n,view){
+  if(view==='lenses') return plur(n,'lens','lenses');
+  var p=[];
+  if(view==='boxes'){ var b=Math.floor(n/6); n-=b*6; if(b) p.push(plur(b,'box','boxes')); }
+  var pr=Math.floor(n/2); n-=pr*2;
+  if(pr) p.push(plur(pr,'pair','pairs'));
+  if(n) p.push(plur(n,'lens','lenses'));
+  if(!p.length) return '0';
+  if(p.length===1) return p[0];
+  if(p.length===2) return p[0]+' and '+p[1];
+  return p[0]+', '+p[1]+', and '+p[2];
+}
+function clInt(v){ var t=normDigits(String(v)).trim(); if(!/^\d+$/.test(t)) return null; var n=parseInt(t,10); return (n>0&&n<=100000)?n:null; }
+function sanitizeClp(list){
+  var out=[];
+  (Array.isArray(list)?list:[]).forEach(function(k){
+    var v=parseFloat(k);
+    if(isFinite(v)&&v!==0&&Math.abs(v)<=20&&isStep(v)&&out.indexOf(pk(v))<0) out.push(pk(v));
+  });
+  return out;
+}
+function clPowers(){
+  var a=CL_POWERS.slice();
+  db.clp.forEach(function(k){ var v=parseFloat(k); if(a.indexOf(v)<0) a.push(v); });
+  return a.sort(function(x,y){ return y-x; });
+}
+var clNew={sign:'-',p:'',q:''};
+function clAddForm(err){
+  clShow(clHead('Add a power \u00b7 '+CLB[cls.branch])+
+    '<div class="lbl" style="margin-top:10px">Sign</div>'+choices('cl-sign',[{v:'-',label:'\u2212'},{v:'+',label:'+'}],clNew.sign)+
+    '<div class="cll"><input type="text" inputmode="decimal" id="cl-ap" placeholder="Power, for example 5.75" value="'+esc(clNew.p)+'"></div>'+
+    '<div class="cll"><input type="text" inputmode="numeric" id="cl-aq" placeholder="Amount" value="'+esc(clNew.q)+'"><span class="clu">lenses</span></div>'+
+    '<p class="errtxt" id="cl-err">'+esc(err||'')+'</p><div class="mact"><button class="primary" data-a="cl-addp-ok">Add power</button></div>');
+}
+function clAddCollect(){ var p=$('#cl-ap'), q=$('#cl-aq'); if(p) clNew.p=p.value; if(q) clNew.q=q.value; }
+function clAddApply(){
+  clAddCollect();
+  var t=normDigits(clNew.p).replace(/\s+/g,'').replace(',','.'), sg=clNew.sign, q=normDigits(clNew.q).trim();
+  if(t.charAt(0)==='-'||t.charAt(0)==='+'){ sg=t.charAt(0); t=t.slice(1); }
+  var m=parseNum(t);
+  if(m===null||m<=0||m>20||!isStep(m)){ clAddForm('Enter the power in steps of 0.25, for example 5.75'); return; }
+  if(!/^\d+$/.test(q)||parseInt(q,10)>100000){ clAddForm('Enter the amount in lenses (0 or more)'); return; }
+  var v=sg==='-'?-m:m, k=pk(v), n=parseInt(q,10), b=cls.branch;
+  if(clPowers().indexOf(v)>=0){ clAddForm(k+' is already in the list'); return; }
+  db.clp.push(k); if(n>0) db.cl[b][k]=n;
+  saveDb(); render(true);
+  clDone('Power added',['<b>'+k+'</b> \u00b7 '+fmtCount(n,'lenses'),'Added to the list, with the amount in '+CLB[b]+'.']);
+}
+function invExport(){
+  if(session!=='admin') return;
+  var key=db.cloudKey;
+  if(!key){
+    clShow(clHead('Upload key')+'<div class="mbody"><p>Enter the secret key once. It is saved on this device and also used for the lens file.</p></div><input type="password" id="inv-key-in" placeholder="Secret key" autocomplete="off"><p class="errtxt" id="cl-err"></p><div class="mact"><button class="primary" data-a="inv-key-ok">Save and export</button></div>');
+    return;
+  }
+  toast('Uploading inventory...');
+  var d=new Date(), p=function(n){ return (n<10?'0':'')+n; };
+  var name='elshahed-inventory-'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+'.json';
+  var data=JSON.stringify({app:'elshahed-inventory',version:1,exportedAt:d.toISOString(),cl:db.cl,clp:db.clp});
+  fetch(INV_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:key,name:name,data:data})})
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var j=null; try{ j=JSON.parse(t); }catch(x){}
+      if(!j) throw new Error('The script sent a web page instead of an answer');
+      toast(j.ok?'Inventory uploaded to Google Drive':(j.error||'Upload failed'));
+    })
+    .catch(cloudFail);
+}
+function invUpdate(){
+  if(session!=='admin') return;
+  toast('Getting the newest inventory...');
+  fetch(INV_URL+'?t='+Date.now())
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      if(t.charAt(0)==='<') throw new Error('The script sent a web page instead of the file');
+      var d=null; try{ d=JSON.parse(t); }catch(x){}
+      if(!d||!d.cl){ openModal('No inventory file','<p>No inventory file was found in the Drive folder yet. Tap Export inventory in Settings on the other device first.</p>',[{label:'OK',cls:'primary'}]); return; }
+      var when=d.exportedAt?fmtDate(Date.parse(d.exportedAt)):'';
+      openModal('Replace the inventory?','<p>The newest file'+(when?' (exported '+esc(when)+')':'')+' will replace the stock and the added powers on this device.</p>',[
+        {label:'Replace',cls:'primary',fn:function(){ db.cl=sanitizeCl(d.cl); db.clp=sanitizeClp(d.clp); saveDb(); render(true); toast('Inventory updated'); }},
+        {label:'Cancel'}
+      ]);
+    })
+    .catch(cloudFail);
+}
+function viewCL(){
+  if(cls.sub==='inventory') return viewInv();
+  return '<h1 class="pg">Contacts</h1><div class="choices" role="group"><button type="button" class="choice" disabled>Seller<small>Coming soon</small></button>'+
+    '<button type="button" class="choice" data-a="cl-sub" data-v="inventory">Inventory</button></div>';
+}
+function viewInv(){
+  var b=cls.branch, st=db.cl[b];
+  return '<div class="clhead"><button class="back" data-a="cl-back" aria-label="Back">'+ICON.back+'</button><h1 class="pg" style="margin:0;flex:1">Inventory</h1><select id="cl-view" aria-label="View as">'+
+    [['boxes','Boxes'],['pairs','Pairs'],['lenses','Lenses']].map(function(o){ return '<option value="'+o[0]+'"'+(cls.view===o[0]?' selected':'')+'>View as: '+o[1]+'</option>'; }).join('')+'</select></div>'+
+    choices('cl-branch',[{v:'hightown',label:'Hightown'},{v:'diamond',label:'Diamond'}],b)+
+    '<div style="margin-top:14px">'+clPowers().map(function(p){
+      var k=pk(p), n=st[k]||0;
+      return '<button class="clrow" data-a="cl-row" data-k="'+k+'"><b>'+k+'</b><span class="'+(n?'':'z')+'">'+esc(fmtCount(n,cls.view))+'</span></button>';
+    }).join('')+'</div>'+
+    '<div class="clhead" style="margin:6px 0 0"><button class="addrange" data-a="cl-addp">+ Add a power</button>'+(INV_URL?'<button class="addrange" data-a="inv-update">Update</button>':'')+'</div>'+
+    '<div class="stickybar"><div class="row2"><button class="secondary" data-a="cl-open" data-v="sell">Sell</button><button class="primary" data-a="cl-open" data-v="buy">Buy</button></div></div>';
+}
+function clHead(t){ return '<div class="clh"><h2>'+esc(t)+'</h2><button class="clx" data-a="cl-close" aria-label="Close">\u2715</button></div>'; }
+function clShow(html){ $('#modal-root').innerHTML='<div class="overlay"><div class="sheet" role="dialog" aria-modal="true">'+html+'</div></div>'; }
+function clDone(title,lines){ clShow(clHead(title)+'<div class="mbody">'+lines.map(function(l){ return '<p>'+l+'</p>'; }).join('')+'</div><div class="mact"><button class="primary" data-a="cl-close">Done</button></div>'); }
+function powerSel(id,val){
+  return '<select id="'+id+'"><option value="">Power</option>'+clPowers().map(function(p){ var k=pk(p); return '<option value="'+k+'"'+(k===val?' selected':'')+'>'+k+'</option>'; }).join('')+'</select>';
+}
+function clForm(err){
+  var buy=clMode==='buy';
+  clShow(clHead((buy?'Buy':'Sell')+' lenses \u00b7 '+CLB[cls.branch])+
+    clLines.map(function(l,i){
+      return '<div class="cll">'+powerSel('cl-p'+i,l.p)+'<input type="text" inputmode="numeric" id="cl-n'+i+'" placeholder="0" value="'+esc(l.n)+'"><span class="clu">lenses</span>'+(i?'<button class="clx" data-a="cl-rmline" data-i="'+i+'" aria-label="Remove">\u2715</button>':'')+'</div>';
+    }).join('')+
+    '<button class="addrange" data-a="cl-addline">+ Add another power</button><p class="errtxt" id="cl-err">'+esc(err||'')+'</p><div class="mact"><button class="primary" data-a="cl-ok">OK</button></div>');
+}
+function clCollect(){ clLines.forEach(function(l,i){ var p=$('#cl-p'+i), n=$('#cl-n'+i); if(p) l.p=p.value; if(n) l.n=n.value; }); }
+function clApply(){
+  clCollect();
+  var b=cls.branch, st=db.cl[b], tot={}, i, p, n, keys;
+  for(i=0;i<clLines.length;i++){
+    p=clLines[i].p; n=clInt(clLines[i].n);
+    if(!p){ clForm('Choose a power on every line'); return; }
+    if(n===null){ clForm('Enter a whole number of lenses on every line'); return; }
+    tot[p]=(tot[p]||0)+n;
+  }
+  keys=Object.keys(tot);
+  if(clMode==='sell'){
+    for(i=0;i<keys.length;i++){
+      if((st[keys[i]]||0)<tot[keys[i]]){ clForm('Not available: '+keys[i]+' has only '+fmtCount(st[keys[i]]||0,'lenses')+' in '+CLB[b]); return; }
+    }
+  }
+  keys.forEach(function(k){ st[k]=(st[k]||0)+(clMode==='buy'?tot[k]:-tot[k]); if(st[k]<=0) delete st[k]; });
+  saveDb(); render(true);
+  clDone(clMode==='buy'?'Bought':'Sold',keys.map(function(k){ return '<b>'+k+'</b> \u00b7 '+fmtCount(tot[k],'lenses'); }).concat([(clMode==='buy'?'Added to ':'Taken from ')+CLB[b]+'.']));
+}
+function clTransfer(err,val){
+  var b=cls.branch, o=otherB(b), k=clRow;
+  clShow(clHead('Power '+k)+'<div class="mbody"><p>'+CLB[b]+': <b>'+esc(fmtCount(db.cl[b][k]||0,cls.view))+'</b></p><p>'+CLB[o]+': <b>'+esc(fmtCount(db.cl[o][k]||0,cls.view))+'</b></p></div>'+
+    '<div class="cll"><b class="clp">'+k+'</b><input type="text" inputmode="numeric" id="cl-tn" placeholder="0" value="'+esc(val||'')+'"><span class="clu">lenses</span></div>'+
+    '<p class="errtxt" id="cl-err">'+esc(err||'')+'</p><div class="row2"><button class="secondary" data-a="cl-send">Send</button><button class="primary" data-a="cl-recv">Receive</button></div>'+
+    (db.clp.indexOf(k)>=0&&!(db.cl.hightown[k]||db.cl.diamond[k])?'<button class="link" data-a="cl-delp">Remove this power from the list</button>':''));
+}
+function clMove(send){
+  var b=cls.branch, o=otherB(b), k=clRow, raw=($('#cl-tn')||{}).value||'', n=clInt(raw);
+  if(n===null){ clTransfer('Enter a whole number of lenses',raw); return; }
+  var from=send?b:o, to=send?o:b;
+  if((db.cl[from][k]||0)<n){ clTransfer('Not available: '+CLB[from]+' has only '+fmtCount(db.cl[from][k]||0,'lenses'),raw); return; }
+  db.cl[from][k]-=n; if(db.cl[from][k]<=0) delete db.cl[from][k];
+  db.cl[to][k]=(db.cl[to][k]||0)+n;
+  saveDb(); render(true);
+  clDone(send?'Sent':'Received',['<b>'+k+'</b> \u00b7 '+fmtCount(n,'lenses'),send?('Sent from '+CLB[b]+' to '+CLB[o]+'.'):('Received from '+CLB[o]+' into '+CLB[b]+'.')]);
 }
 
 function viewLogin(){
@@ -631,7 +817,8 @@ function viewSettings(){
     '<div class="card"><h2>Lens data</h2><p class="muted">'+n+' lens'+(n===1?'':'es')+' · last changed '+esc(fmtDate(db.updatedAt))+'</p>'+
       '<p class="muted small" style="margin-top:8px">The data lives on this phone only. To update other phones: tap Export file, then on each phone tap “Update lens data from a file” on the login screen, or Import file below.</p>'+
       '<div style="height:12px"></div><button class="secondary" data-a="export-dl">Export file</button>'+
-      '<button class="secondary" data-a="import-start">Import file</button></div>';
+      '<button class="secondary" data-a="import-start">Import file</button></div>'+
+    (INV_URL?'<div class="card"><h2>Inventory (contact lenses)</h2><p class="muted">Upload the current stock and added powers to the inventory folder in Google Drive, so the other admin can update from it. It uses the same upload key as the lens file.</p><button class="primary" data-a="inv-export">Export inventory</button></div>':'');
 }
 
 function render(keep){
@@ -640,13 +827,14 @@ function render(keep){
     document.body.classList.remove('admin');
     app.innerHTML=viewLogin();
   } else {
-    if(session!=='admin'&&(screen==='manage'||screen==='form'||screen==='settings')) screen='find';
+    if(session!=='admin'&&(screen==='manage'||screen==='form'||screen==='settings'||screen==='cl')) screen='find';
     var body='';
     if(screen==='find') body=viewFind();
     else if(screen==='results') body=viewResults();
     else if(screen==='manage') body=viewManage();
     else if(screen==='form') body=viewForm();
     else if(screen==='settings') body=viewSettings();
+    else if(screen==='cl') body=viewCL();
     document.body.classList.toggle('admin',session==='admin'&&screen!=='form');
     app.innerHTML=header()+'<main>'+body+'</main>'+nav();
   }
@@ -714,7 +902,7 @@ function doLogout(){
   if(subDepth){ subDepth=0; ignorePop++; try{ history.back(); }catch(e){ ignorePop--; } }
   screen='login'; loginErr=''; render();
 }
-function showFindReset(){ sel={index:null,coating:null,photo:false,color:null,cyl:null}; rxp=freshRx(); manage.q=''; }
+function showFindReset(){ sel={index:null,coating:null,photo:false,color:null,cyl:null}; rxp=freshRx(); cls.sub=null; manage.q=''; }
 
 /* ================= form logic ================= */
 function blankRange(){ return {sf:'',st:'',cf:'',ct:''}; }
@@ -916,6 +1104,24 @@ var H={
   'login':doLogin,
   'logout':doLogout,
   'nav':function(el){ go(el.dataset.v); },
+  'cl-branch':function(el){ if(session==='admin'){ cls.branch=el.dataset.v; render(true); } },
+  'cl-row':function(el){ if(session!=='admin') return; clRow=el.dataset.k; clTransfer(''); },
+  'cl-open':function(el){ if(session!=='admin') return; clMode=el.dataset.v; clLines=[{p:'',n:''}]; clForm(''); },
+  'cl-addline':function(){ clCollect(); clLines.push({p:'',n:''}); clForm(''); },
+  'cl-rmline':function(el){ clCollect(); clLines.splice(+el.dataset.i,1); clForm(''); },
+  'cl-ok':function(){ if(session==='admin') clApply(); },
+  'cl-send':function(){ if(session==='admin') clMove(true); },
+  'cl-recv':function(){ if(session==='admin') clMove(false); },
+  'cl-addp':function(){ if(session!=='admin') return; clNew={sign:'-',p:'',q:''}; clAddForm(''); },
+  'cl-sign':function(el){ clAddCollect(); clNew.sign=el.dataset.v; clAddForm(''); },
+  'cl-addp-ok':function(){ if(session==='admin') clAddApply(); },
+  'cl-delp':function(){ if(session!=='admin') return; db.clp=db.clp.filter(function(x){ return x!==clRow; }); saveDb(); closeModal(); render(true); },
+  'inv-export':invExport,
+  'inv-update':invUpdate,
+  'inv-key-ok':function(){ var v=(($('#inv-key-in')||{}).value||'').trim(); if(!v){ var e=$('#cl-err'); if(e) e.textContent='Enter the key'; return; } db.cloudKey=v; saveDb(); closeModal(); render(true); invExport(); },
+  'cl-back':function(){ cls.sub=null; render(); },
+  'cl-sub':function(el){ if(session==='admin'){ cls.sub=el.dataset.v; render(true); } },
+  'cl-close':function(){ closeModal(); },
   'rx-on':function(el){ if(el.dataset.v==='yes') rxp.on=true; else rxp=freshRx(); render(true); },
   'rx-eye':function(el){ rxp.eye=el.dataset.v; render(true); },
   'rx-sign':function(el){ rxp[rxp.eye][el.dataset.k].sign=el.dataset.v; rxSignUI(); rxRefresh(); },
@@ -998,6 +1204,9 @@ document.addEventListener('focusout',function(ev){
     var v=parseNum(el.value);
     if(v!==null&&isStep(v)){ var p=f.split(':'); el.value=fmtNum(v); form.ranges[+p[1]][p[2]]=el.value; }
   }
+});
+document.addEventListener('change',function(ev){
+  var el=ev.target; if(el&&el.id==='cl-view'){ cls.view=el.value; render(true); }
 });
 document.addEventListener('keydown',function(ev){
   if(ev.key==='Enter'&&ev.target&&ev.target.id==='pw') doLogin();
