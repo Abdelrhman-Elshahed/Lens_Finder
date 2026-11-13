@@ -419,7 +419,7 @@ function nav(){
 /* ================= contact lens inventory (admin) ================= */
 ICON.cl='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 var CLB={hightown:'Hightown',diamond:'Diamond'};
-var cls={branch:'hightown',view:'boxes',sub:null}, clLines=[], clMode='', clRow='';
+var cls={branch:'hightown',view:(function(){ var v=sget('elshahed_optics_clview_v1'); return (v==='pairs'||v==='lenses')?v:'boxes'; })(),sub:null}, clLines=[], clMode='', clRow='';
 var CL_POWERS=(function(){ var a=[],i; for(i=3;i<=20;i++) a.push(-i*0.25); for(i=11;i<=16;i++) a.push(-i*0.5); return a; })();
 function pk(p){ return (p>0?'+':'')+p.toFixed(2); }
 function otherB(b){ return b==='hightown'?'diamond':'hightown'; }
@@ -1220,7 +1220,7 @@ document.addEventListener('focusout',function(ev){
   }
 });
 document.addEventListener('change',function(ev){
-  var el=ev.target; if(el&&el.id==='cl-view'){ cls.view=el.value; render(true); }
+  var el=ev.target; if(el&&el.id==='cl-view'){ cls.view=el.value; sset('elshahed_optics_clview_v1',cls.view); render(true); }
 });
 document.addEventListener('keydown',function(ev){
   if(ev.key==='Enter'&&ev.target&&ev.target.id==='pw') doLogin();
