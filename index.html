@@ -316,7 +316,7 @@ function sanitizeLens(l){
     ranges.push(o);
   }
   return {id:String(l.id||uid()), company:company, index:index, mat:mat, nidx:nidx, coating:nd?'':l.coating, photo:photo, color:color,
-          cyl:nd?'':l.cyl, ranges:ranges, price:price, notes:String(l.notes||'').trim(), created:Number(l.created)||Date.now()};
+          cyl:nd?'':l.cyl, antiColor:(!nd&&String(l.antiColor||l['anti-color']||l.anti_color||'').toLowerCase()==='blue')?'Blue':'Green', ranges:ranges, price:price, notes:String(l.notes||'').trim(), created:Number(l.created)||Date.now()};
 }
 function loadDb(){
   var d=null;
@@ -358,7 +358,7 @@ function findSameOptions(f,pool){
   var key=normName(f.company);
   for(var i=0;i<pool.length;i++){
     var l=pool[i];
-    if(normName(l.company)===key&&l.index===f.index&&(l.mat||'')===(f.mat||'')&&(l.nidx||'')===(f.nidx||'')&&(l.coating||'')===(f.coating||'')&&l.photo===!!f.photo&&(l.color||'')===(f.photo?f.color:'')&&(l.cyl||'')===(f.cyl||'')) return l;
+    if(normName(l.company)===key&&l.index===f.index&&(l.mat||'')===(f.mat||'')&&(l.nidx||'')===(f.nidx||'')&&(l.coating||'')===(f.coating||'')&&l.photo===!!f.photo&&(l.color||'')===(f.photo?f.color:'')&&(l.cyl||'')===(f.cyl||'')&&(l.antiColor||'Green')===(f.ac||'Green')) return l;
   }
   return null;
 }
@@ -695,6 +695,7 @@ function viewFind(){
     (rxp.on?rxPanel():'')+
     '<div class="lbl">Index</div>'+choices('f-index',OPT.index.concat([{v:'RX',label:'RX',sub:'Opens Drive link'}]),sel.index)+
     (nd?'':'<div class="lbl">Coating</div>'+choices('f-coating',OPT.coating,sel.coating)+
+    '<label class="chk" style="margin:14px 2px 0;color:var(--ink);font-weight:700;font-size:16px"><input type="checkbox" data-a="f-blue"'+(sel.blueAnti?' checked':'')+'> Only show blue anti</label>'+
     '<div class="lbl">Photochromic</div>'+choices('f-photo',OPT.photo,sel.photo?'yes':'no')+
     (sel.photo?'<div class="lbl">Photo color</div>'+choices('f-color',OPT.color,sel.color):'')+
     '<div class="lbl">Cylinder</div>'+choices('f-cyl',OPT.cyl,sel.cyl))+
@@ -703,16 +704,25 @@ function viewFind(){
     '<p class="hint" id="rx-hint">'+(miss.length?'Still needed: '+miss.join(', '):'')+'</p></div>');
 }
 
-function matches(){
+function gk(l){ return normName(l.company)+'|'+l.index+'|'+l.mat+'|'+l.nidx+'|'+l.coating+'|'+l.photo+'|'+l.color; }
+function antiRule(list){
+  if(sel.index==='Night Drive') return list;
+  if(sel.blueAnti) return list.filter(function(l){ return l.antiColor==='Blue'; });
+  var green={};
+  list.forEach(function(l){ if(l.antiColor!=='Blue') green[gk(l)]=1; });
+  return list.filter(function(l){ return l.antiColor!=='Blue'||!green[gk(l)]; });
+}
+function matches(){ return antiRule(matchesBase()); }
+function matchesBase(){
   return db.lenses.filter(function(l){
     return l.index===sel.index&&(sel.index==='Night Drive'||(l.coating===sel.coating&&l.photo===sel.photo&&(!sel.photo||l.color===sel.color)&&l.cyl===sel.cyl));
   }).filter(rxFits).sort(function(a,b){ return a.price-b.price || a.company.localeCompare(b.company); });
 }
 function lensTag(l){ return l.index==='Unbreakable'?l.mat:(l.index==='Night Drive'?'Night Drive '+l.nidx:''); }
-function rowTitle(l){ if(l.index==='Night Drive') return 'Night Drive '+l.nidx; return (l.index==='Unbreakable'?'Unbreakable '+l.mat:l.index)+' · '+l.coating+(l.photo?' · Photo '+l.color:''); }
+function rowTitle(l){ if(l.index==='Night Drive') return 'Night Drive '+l.nidx; return (l.index==='Unbreakable'?'Unbreakable '+l.mat:l.index)+' · '+l.coating+(l.photo?' · Photo '+l.color:'')+(l.antiColor==='Blue'?' · Blue':''); }
 function rowSub(l){ var nd=l.index==='Night Drive'; return (nd?'':l.cyl+' cylinder')+(l.ranges.length>1?(nd?'':' · ')+l.ranges.length+' ranges':''); }
 function lensCard(l){
-  return '<article class="card lens"><div class="top"><h3>'+esc(l.company)+'</h3><div class="price">'+fmtPrice(l.price)+'<span>EGP</span></div></div>'+(lensTag(l)?'<p class="muted">'+esc(lensTag(l))+'</p>':'')+fitHtml(l)+
+  return '<article class="card lens"><div class="top"><h3>'+esc(l.company)+'</h3><div class="price">'+fmtPrice(l.price)+'<span>EGP</span></div></div>'+(lensTag(l)?'<p class="muted">'+esc(lensTag(l))+'</p>':'')+(l.antiColor==='Blue'?'<p class="muted">Anti-color: Blue</p>':'')+fitHtml(l)+
     '<ul class="ranges">'+l.ranges.map(function(r){
       return '<li><span><em>Sphere</em> '+fmtNum(r.sf)+' to '+fmtNum(r.st)+'</span><span><em>Cylinder</em> '+fmtNum(r.cf)+' to '+fmtNum(r.ct)+'</span></li>';
     }).join('')+'</ul>'+(l.notes?'<p class="notes">'+esc(l.notes)+'</p>':'')+'</article>';
@@ -721,6 +731,7 @@ function viewResults(){
   var list=matches();
   var chips=sel.index==='Night Drive'?['Night Drive']:[idxLabel(sel.index),sel.coating,sel.photo?'Photochromic '+sel.color:'No photochromic',sel.cyl+' cylinder'];
   chips=chips.concat(rxChips());
+  if(sel.blueAnti&&sel.index!=='Night Drive') chips.push('Blue anti only');
   return '<button class="summary" data-a="f-back" aria-label="Change options"><span class="chips">'+chips.map(function(c){ return '<span class="chip">'+esc(c)+'</span>'; }).join('')+'</span><span class="chg">Change</span></button>'+
     (list.length
       ? '<p class="count-line">'+list.length+' result'+(list.length===1?'':'s')+' · lowest price first</p>'+list.map(lensCard).join('')
@@ -766,6 +777,7 @@ function viewForm(){
     (f.index==='Unbreakable'?'<div class="fld"><div class="lbl">Material</div>'+choices('x-mat',OPT.mat,f.mat)+err('mat')+'</div>':'')+
     (nd?'<div class="fld"><div class="lbl">Night Drive index</div>'+choices('x-nidx',OPT.nidx,f.nidx)+err('nidx')+'</div>':
     '<div class="fld"><div class="lbl">Coating</div>'+choices('x-coating',OPT.coating,f.coating)+err('coating')+'</div>'+
+    '<div class="fld"><div class="lbl">Anti-color</div>'+choices('x-ac',[{v:'Green',label:'Green'},{v:'Blue',label:'Blue'}],f.ac||'Green')+'</div>'+
     '<div class="fld"><div class="lbl">Photochromic</div>'+choices('x-photo',OPT.photo,f.photo?'yes':'no')+'</div>'+
     (f.photo?'<div class="fld"><div class="lbl">Photo color</div>'+choices('x-color',OPT.color,f.color)+err('color')+'</div>':'')+
     '<div class="fld"><div class="lbl">Cylinder type</div>'+choices('x-cyl',OPT.cyl,f.cyl)+err('cyl')+'</div>')+
@@ -884,11 +896,11 @@ function showFindReset(){ sel={index:null,coating:null,photo:false,color:null,cy
 function blankRange(){ return {sf:'',st:'',cf:'',ct:''}; }
 function openForm(lens,prefill){
   form=lens?{
-    id:lens.id, company:lens.company, index:lens.index, mat:lens.mat||null, nidx:lens.nidx||null, coating:lens.coating, photo:lens.photo, color:lens.color||null, cyl:lens.cyl,
+    id:lens.id, company:lens.company, index:lens.index, mat:lens.mat||null, nidx:lens.nidx||null, coating:lens.coating, photo:lens.photo, color:lens.color||null, cyl:lens.cyl, ac:lens.antiColor||'Green',
     ranges:lens.ranges.map(function(r){ return {sf:fmtNum(r.sf),st:fmtNum(r.st),cf:fmtNum(r.cf),ct:fmtNum(r.ct)}; }),
     price:String(lens.price), notes:lens.notes||'', errors:{}, dirty:false, skipSimilar:false, skipDup:false
   }:{
-    id:null, company:prefill||'', index:null, mat:null, nidx:null, coating:null, photo:false, color:null, cyl:null,
+    id:null, company:prefill||'', index:null, mat:null, nidx:null, coating:null, photo:false, color:null, cyl:null, ac:'Green',
     ranges:[blankRange()], price:'', notes:'', errors:{}, dirty:false, skipSimilar:false, skipDup:false
   };
   enterSub('form');
@@ -966,7 +978,7 @@ function stepDup(){
 function commit(){
   var f=form;
   var lens={
-    id:f.id||uid(), company:cleanName(f.company), index:f.index, mat:f.index==='Unbreakable'?f.mat:'', nidx:f.index==='Night Drive'?f.nidx:'', coating:f.coating||'', photo:!!f.photo, color:f.photo?f.color:'', cyl:f.cyl||'',
+    id:f.id||uid(), company:cleanName(f.company), index:f.index, mat:f.index==='Unbreakable'?f.mat:'', nidx:f.index==='Night Drive'?f.nidx:'', coating:f.coating||'', photo:!!f.photo, color:f.photo?f.color:'', cyl:f.cyl||'', antiColor:f.index==='Night Drive'?'Green':(f.ac||'Green'),
     ranges:f.ranges.map(function(r){ return {sf:parseNum(r.sf),st:parseNum(r.st),cf:parseNum(r.cf),ct:parseNum(r.ct)}; }),
     price:parsePrice(f.price), notes:(f.notes||'').trim(), created:Date.now()
   };
@@ -1130,6 +1142,7 @@ var H={
     if(v&&!/^https?:\/\//i.test(v)){ toast('The link must start with https://'); return; }
     db.rx=v; db.updatedAt=Date.now(); saveDb(); toast('RX link saved');
   },
+  'f-blue':function(el){ sel.blueAnti=el.checked; },
   'f-coating':function(el){ sel.coating=el.dataset.v; render(true); },
   'f-photo':function(el){ sel.photo=el.dataset.v==='yes'; if(!sel.photo) sel.color=null; render(true); },
   'f-color':function(el){ sel.color=el.dataset.v; render(true); },
@@ -1147,6 +1160,7 @@ var H={
   'x-index':function(el){ var v=el.dataset.v; form.index=v; if(v!=='Unbreakable') form.mat=null; if(v==='Night Drive'){ form.coating=''; form.photo=false; form.color=null; form.cyl=''; } else form.nidx=null; form.dirty=true; delete form.errors.index; render(true); },
   'x-mat':function(el){ form.mat=el.dataset.v; form.dirty=true; delete form.errors.mat; render(true); },
   'x-nidx':function(el){ form.nidx=el.dataset.v; form.dirty=true; delete form.errors.nidx; render(true); },
+  'x-ac':function(el){ form.ac=el.dataset.v; form.dirty=true; render(true); },
   'x-coating':function(el){ form.coating=el.dataset.v; form.dirty=true; delete form.errors.coating; render(true); },
   'x-photo':function(el){ form.photo=el.dataset.v==='yes'; if(!form.photo) form.color=null; form.dirty=true; render(true); },
   'x-color':function(el){ form.color=el.dataset.v; form.dirty=true; delete form.errors.color; render(true); },
