@@ -704,7 +704,7 @@ function viewFind(){
     '<p class="hint" id="rx-hint">'+(miss.length?'Still needed: '+miss.join(', '):'')+'</p></div>');
 }
 
-function gk(l){ return normName(l.company)+'|'+l.index+'|'+l.mat+'|'+l.nidx+'|'+l.coating+'|'+l.photo+'|'+l.color; }
+function gk(l){ return normName(l.company)+'|'+l.index+'|'+l.mat+'|'+l.nidx+'|'+l.coating+'|'+l.photo+'|'+l.color+'|'+l.ranges.map(function(r){ return [Math.min(r.sf,r.st),Math.max(r.sf,r.st),Math.min(r.cf,r.ct),Math.max(r.cf,r.ct)].join(','); }).sort().join(';'); }
 function antiRule(list){
   if(sel.index==='Night Drive') return list;
   if(sel.blueAnti) return list.filter(function(l){ return l.antiColor==='Blue'; });
